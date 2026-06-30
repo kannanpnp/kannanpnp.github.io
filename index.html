@@ -3,20 +3,24 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Risk2Safe — Process Safety Tools by Rajagopal Kannan</title>
-<meta name="description" content="A self-built toolkit for HAZOP, risk assessment, PSM audit, and emergency response — engineered from 30+ years in upstream, downstream, and offshore oil and gas.">
+<title>Risk2Safe — Process Safety &amp; Crisis Management Toolkit</title>
+<meta name="description" content="A working toolkit for occupational safety, process safety, industrial hygiene, business continuity, and crisis & emergency response — built from three decades in upstream, downstream, offshore, and EPC oil and gas.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
   :root {
     --ink: #0B1220;
-    --ink-soft: #141d2e;
+    --ink-soft: #121b2c;
+    --ink-card: #16202f;
     --surface: #F5F3EE;
     --surface-line: #e4e0d6;
     --green: #1B5E4F;
     --green-bright: #2C8A73;
     --amber: #C97A2C;
+    --amber-bright: #E0954A;
+    --rust: #B0492F;
+    --steel: #4C6B8A;
     --grey: #8B93A1;
     --white: #FFFFFF;
     --display: 'Space Grotesk', sans-serif;
@@ -25,7 +29,6 @@
   }
 
   * { margin: 0; padding: 0; box-sizing: border-box; }
-
   html { scroll-behavior: smooth; }
 
   body {
@@ -34,365 +37,563 @@
     font-family: var(--body);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
   }
 
   a { color: inherit; }
-
   ::selection { background: var(--green-bright); color: var(--ink); }
 
-  /* ---------- Layout shell ---------- */
-  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 2; }
 
-  /* ---------- Header ---------- */
+  /* ================= BACKGROUND INDUSTRIAL ART ================= */
+  .bg-art {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-art svg { position: absolute; opacity: 0.05; stroke: var(--grey); fill: none; }
+  .bg-refinery { top: 8%; left: -4%; width: 480px; }
+  .bg-platform { top: 48%; right: -6%; width: 420px; }
+  .bg-ship { bottom: 4%; left: 2%; width: 380px; opacity: 0.045; }
+  .bg-pipeline { top: 28%; left: 38%; width: 900px; opacity: 0.035; }
+  @media (max-width: 900px) {
+    .bg-refinery, .bg-platform, .bg-ship { width: 260px; }
+    .bg-pipeline { display: none; }
+  }
+
+  /* ================= ANIMATED TOP BORDER ================= */
+  .gauge-border {
+    height: 3px; width: 100%; position: relative; overflow: hidden;
+    background: rgba(255,255,255,0.06);
+  }
+  .gauge-border::before {
+    content: '';
+    position: absolute; top: 0; left: -30%; height: 100%; width: 30%;
+    background: linear-gradient(90deg, transparent, var(--green-bright) 35%, var(--amber-bright) 65%, transparent);
+    animation: sweep 5.5s ease-in-out infinite;
+    filter: blur(0.3px);
+  }
+  @keyframes sweep {
+    0%   { left: -30%; }
+    50%  { left: 100%; }
+    100% { left: -30%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gauge-border::before { animation: none; left: 0; width: 100%; opacity: 0.5; }
+  }
+
+  /* ================= HEADER ================= */
   header.site {
     position: sticky; top: 0; z-index: 50;
-    background: rgba(11,18,32,0.86);
+    background: rgba(11,18,32,0.88);
     backdrop-filter: blur(10px);
     border-bottom: 1px solid rgba(255,255,255,0.08);
   }
   header.site .wrap {
     display: flex; align-items: center; justify-content: space-between;
-    padding-top: 18px; padding-bottom: 18px;
+    padding-top: 17px; padding-bottom: 17px;
   }
   .brand {
-    display: flex; align-items: baseline; gap: 10px;
-    font-family: var(--display); font-weight: 600; font-size: 1.05rem;
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--display); font-weight: 600; font-size: 1.1rem;
     letter-spacing: -0.01em;
   }
-  .brand .mark {
-    width: 9px; height: 9px; border-radius: 1px;
-    background: var(--green-bright);
-    display: inline-block;
-    transform: rotate(45deg);
-  }
-  .brand small {
-    font-family: var(--mono); font-weight: 400; font-size: 0.7rem;
-    color: var(--grey); letter-spacing: 0.04em;
-  }
-  nav.site-nav { display: flex; gap: 28px; font-size: 0.85rem; color: var(--grey); }
-  nav.site-nav a { text-decoration: none; transition: color 0.15s ease; }
+  .brand .mark { width: 9px; height: 9px; background: var(--green-bright); transform: rotate(45deg); display: inline-block; flex-shrink: 0; }
+  nav.site-nav { display: flex; gap: 30px; font-size: 0.84rem; color: var(--grey); }
+  nav.site-nav a { text-decoration: none; transition: color 0.15s ease; white-space: nowrap; }
   nav.site-nav a:hover { color: var(--surface); }
+  .nav-toggle { display: none; }
+  @media (max-width: 760px) {
+    nav.site-nav { display: none; }
+  }
 
-  /* ---------- Hero ---------- */
-  .hero { padding: 96px 0 72px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  /* ================= HERO ================= */
+  .hero { padding: 88px 0 64px; border-bottom: 1px solid rgba(255,255,255,0.08); }
   .eyebrow {
-    font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em;
+    font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em;
     color: var(--green-bright); text-transform: uppercase;
     display: flex; align-items: center; gap: 10px; margin-bottom: 22px;
   }
   .eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--green-bright); }
   h1.hero-title {
     font-family: var(--display); font-weight: 600;
-    font-size: clamp(2.3rem, 5vw, 3.6rem);
-    line-height: 1.07; letter-spacing: -0.02em;
-    max-width: 16ch; color: var(--white);
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    line-height: 1.08; letter-spacing: -0.02em;
+    max-width: 17ch; color: var(--white);
   }
-  h1.hero-title em {
-    font-style: normal; color: var(--green-bright);
-  }
-  .hero-sub {
-    margin-top: 22px; font-size: 1.08rem; color: var(--grey);
-    max-width: 56ch; line-height: 1.65;
-  }
-  .hero-meta {
-    margin-top: 40px; display: flex; flex-wrap: wrap; gap: 0;
-    border-top: 1px solid rgba(255,255,255,0.1);
-    padding-top: 24px;
-  }
-  .hero-meta .stat {
-    padding-right: 40px; margin-right: 40px;
-    border-right: 1px solid rgba(255,255,255,0.1);
-  }
-  .hero-meta .stat:last-child { border-right: none; }
-  .hero-meta .stat .num {
-    font-family: var(--display); font-size: 1.6rem; font-weight: 600; color: var(--white);
-    display: block;
-  }
-  .hero-meta .stat .lbl {
-    font-size: 0.78rem; color: var(--grey); margin-top: 2px; display: block;
-  }
+  h1.hero-title em { font-style: normal; color: var(--green-bright); }
+  .hero-sub { margin-top: 22px; font-size: 1.06rem; color: var(--grey); max-width: 58ch; line-height: 1.7; }
+  .hero-meta { margin-top: 40px; display: flex; flex-wrap: wrap; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 24px; }
+  .hero-meta .stat { padding-right: 40px; margin-right: 40px; border-right: 1px solid rgba(255,255,255,0.1); }
+  .hero-meta .stat:last-child { border-right: none; margin-right: 0; padding-right: 0; }
+  .hero-meta .stat .num { font-family: var(--display); font-size: 1.55rem; font-weight: 600; color: var(--white); display: block; }
+  .hero-meta .stat .lbl { font-size: 0.77rem; color: var(--grey); margin-top: 2px; display: block; }
 
-  /* ---------- Discipline sections ---------- */
-  .discipline { padding: 64px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  /* ================= DISCIPLINE NARRATIVE (pillars) ================= */
+  .pillars { padding: 80px 0 72px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .pillars-head { max-width: 62ch; margin-bottom: 48px; }
+  .pillars-head .eyebrow { margin-bottom: 16px; }
+  .pillars-head h2 {
+    font-family: var(--display); font-weight: 600; font-size: clamp(1.6rem, 3vw, 2.1rem);
+    color: var(--white); letter-spacing: -0.015em; line-height: 1.2;
+  }
+  .pillars-head p { margin-top: 16px; font-size: 0.98rem; color: var(--grey); line-height: 1.7; }
+
+  .pillar-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); }
+  @media (max-width: 760px) { .pillar-grid { grid-template-columns: 1fr; } }
+
+  .pillar {
+    background: var(--ink-soft); padding: 32px 30px;
+    display: flex; flex-direction: column; gap: 14px;
+  }
+  .pillar-icon { width: 38px; height: 38px; flex-shrink: 0; }
+  .pillar h3 { font-family: var(--display); font-weight: 600; font-size: 1.1rem; color: var(--white); letter-spacing: -0.005em; }
+  .pillar p { font-size: 0.88rem; color: var(--grey); line-height: 1.65; }
+  .pillar .tag { font-family: var(--mono); font-size: 0.66rem; color: var(--grey); letter-spacing: 0.03em; opacity: 0.75; padding-top: 4px; }
+
+  /* ================= DISCIPLINE TOOL SECTIONS ================= */
+  .discipline { padding: 68px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
   .discipline:last-of-type { border-bottom: none; }
-  .discipline-head {
-    display: flex; align-items: baseline; gap: 16px; margin-bottom: 32px;
-    flex-wrap: wrap;
+  .discipline-head { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 14px; }
+  .discipline-icon {
+    width: 46px; height: 46px; flex-shrink: 0; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(255,255,255,0.12);
   }
-  .discipline-head h2 {
-    font-family: var(--display); font-weight: 600; font-size: 1.5rem;
-    color: var(--white); letter-spacing: -0.01em;
+  .discipline-icon svg { width: 24px; height: 24px; }
+  .discipline-titles h2 {
+    font-family: var(--display); font-weight: 600; font-size: 1.5rem; color: var(--white); letter-spacing: -0.01em;
   }
-  .discipline-head .count {
-    font-family: var(--mono); font-size: 0.75rem; color: var(--grey);
-  }
-  .discipline-desc {
-    font-size: 0.92rem; color: var(--grey); max-width: 60ch; margin-bottom: 28px;
-  }
+  .discipline-titles .count { font-family: var(--mono); font-size: 0.72rem; color: var(--grey); display: block; margin-top: 3px; }
+  .discipline-desc { font-size: 0.92rem; color: var(--grey); max-width: 66ch; margin: 18px 0 30px; line-height: 1.7; }
 
-  .tool-grid {
-    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
-  }
+  .tool-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
   @media (max-width: 760px) { .tool-grid { grid-template-columns: 1fr; } }
 
   .tool-card {
     background: var(--surface); color: var(--ink);
     border-radius: 4px; padding: 24px;
     text-decoration: none; display: flex; flex-direction: column; gap: 14px;
-    border: 1px solid transparent;
-    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-    position: relative; overflow: hidden;
+    border-left: 3px solid var(--card-accent, var(--green));
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    position: relative;
   }
-  .tool-card::before {
-    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
-    background: var(--green); transition: background 0.18s ease;
-  }
-  .tool-card:hover {
-    transform: translateY(-2px);
-    border-color: var(--green-bright);
-    box-shadow: 0 12px 28px rgba(0,0,0,0.35);
-  }
-  .tool-card:hover::before { background: var(--amber); }
+  .tool-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,0.4); }
 
-  .tool-card-top {
-    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
-  }
-  .tool-name {
-    font-family: var(--display); font-weight: 600; font-size: 1.12rem;
-    letter-spacing: -0.01em; line-height: 1.25;
-  }
+  .tool-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .tool-name-row { display: flex; align-items: center; gap: 10px; }
+  .tool-icon { width: 26px; height: 26px; flex-shrink: 0; color: var(--card-accent, var(--green)); }
+  .tool-name { font-family: var(--display); font-weight: 600; font-size: 1.08rem; letter-spacing: -0.005em; line-height: 1.25; }
   .tool-status {
-    font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.04em;
-    padding: 3px 7px; border-radius: 2px; white-space: nowrap;
-    text-transform: uppercase; margin-top: 2px;
+    font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.04em;
+    padding: 3px 7px; border-radius: 2px; white-space: nowrap; text-transform: uppercase;
+    background: rgba(27,94,79,0.1); color: var(--green); flex-shrink: 0; margin-top: 2px;
   }
-  .status-live { background: rgba(27,94,79,0.12); color: var(--green); }
-  .status-build { background: rgba(201,122,44,0.12); color: var(--amber); }
+  .tool-desc { font-size: 0.87rem; color: #4a5568; line-height: 1.58; }
+  .tool-use { font-size: 0.78rem; color: #6b7588; line-height: 1.55; font-style: italic; }
+  .tool-cta {
+    font-family: var(--mono); font-size: 0.7rem; color: var(--card-accent, var(--green));
+    padding-top: 12px; border-top: 1px solid var(--surface-line);
+    display: flex; align-items: center; justify-content: space-between; letter-spacing: 0.02em;
+  }
+  .tool-cta .arrow { font-size: 0.9rem; transition: transform 0.18s ease; }
+  .tool-card:hover .tool-cta .arrow { transform: translateX(4px); }
 
-  .tool-desc { font-size: 0.88rem; color: #4a5568; line-height: 1.55; }
-
-  .tool-spec {
-    font-family: var(--mono); font-size: 0.68rem; color: var(--grey);
-    letter-spacing: 0.02em; padding-top: 12px;
-    border-top: 1px solid var(--surface-line);
-    display: flex; align-items: center; justify-content: space-between;
-  }
-  .tool-spec .std { color: #5a6478; }
-  .tool-spec .arrow { color: var(--green); font-size: 0.85rem; transition: transform 0.18s ease; }
-  .tool-card:hover .tool-spec .arrow { transform: translateX(3px); color: var(--amber); }
-
-  /* ---------- Note panel ---------- */
-  .note-panel {
-    margin-top: 16px; padding: 16px 20px;
-    background: rgba(201,122,44,0.08); border: 1px solid rgba(201,122,44,0.25);
-    border-radius: 4px; font-size: 0.82rem; color: #d9a672;
-    display: flex; gap: 12px; align-items: flex-start;
-  }
-  .note-panel .dot {
-    width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
-    margin-top: 6px; flex-shrink: 0;
-  }
-
-  /* ---------- Footer ---------- */
-  footer.site {
-    padding: 56px 0 48px; border-top: 1px solid rgba(255,255,255,0.08);
-  }
-  .footer-grid {
-    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 32px;
-  }
-  .footer-brand { max-width: 36ch; }
+  /* ================= FOOTER ================= */
+  footer.site { padding: 56px 0 48px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .footer-grid { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 32px; }
+  .footer-brand { max-width: 38ch; }
   .footer-brand .brand { margin-bottom: 12px; }
-  .footer-brand p { font-size: 0.85rem; color: var(--grey); line-height: 1.6; }
+  .footer-brand p { font-size: 0.85rem; color: var(--grey); line-height: 1.65; }
   .footer-links { display: flex; gap: 56px; flex-wrap: wrap; }
-  .footer-col h4 {
-    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em;
-    text-transform: uppercase; color: var(--grey); margin-bottom: 14px;
-  }
-  .footer-col a {
-    display: block; font-size: 0.85rem; color: var(--surface);
-    text-decoration: none; margin-bottom: 9px; opacity: 0.85;
-  }
+  .footer-col h4 { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--grey); margin-bottom: 14px; }
+  .footer-col a { display: block; font-size: 0.85rem; color: var(--surface); text-decoration: none; margin-bottom: 9px; opacity: 0.85; }
   .footer-col a:hover { opacity: 1; color: var(--green-bright); }
-  .footer-bottom {
-    margin-top: 48px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
-    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
-    font-size: 0.78rem; color: var(--grey); font-family: var(--mono);
-  }
+  .footer-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 0.76rem; color: var(--grey); font-family: var(--mono); }
 
   @media (max-width: 600px) {
-    .hero { padding: 64px 0 48px; }
-    .hero-meta .stat { padding-right: 24px; margin-right: 24px; }
+    .hero { padding: 56px 0 44px; }
+    .hero-meta .stat { padding-right: 22px; margin-right: 22px; }
+    .pillars { padding: 56px 0; }
+    .discipline { padding: 52px 0; }
   }
 </style>
 </head>
 <body>
 
+<div class="gauge-border"></div>
+
+<!-- Minimal industrial background line-art -->
+<div class="bg-art" aria-hidden="true">
+  <svg class="bg-pipeline" viewBox="0 0 900 120" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 60 H900" stroke-width="2"/>
+    <circle cx="120" cy="60" r="14" stroke-width="2"/>
+    <circle cx="320" cy="60" r="14" stroke-width="2"/>
+    <circle cx="560" cy="60" r="14" stroke-width="2"/>
+    <circle cx="780" cy="60" r="14" stroke-width="2"/>
+    <path d="M120 46 V20 H180 V46" stroke-width="2"/>
+    <path d="M560 74 V100 H620 V74" stroke-width="2"/>
+  </svg>
+
+  <svg class="bg-refinery" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg">
+    <rect x="20" y="220" width="360" height="6" stroke-width="2"/>
+    <rect x="50" y="120" width="22" height="100" stroke-width="2"/>
+    <circle cx="61" cy="100" r="20" stroke-width="2"/>
+    <rect x="110" y="80" width="18" height="140" stroke-width="2"/>
+    <circle cx="119" cy="60" r="18" stroke-width="2"/>
+    <rect x="170" y="150" width="40" height="70" stroke-width="2"/>
+    <path d="M170 150 L190 110 L210 150" stroke-width="2"/>
+    <rect x="250" y="60" width="14" height="160" stroke-width="2"/>
+    <path d="M257 60 L257 30" stroke-width="2"/>
+    <rect x="300" y="130" width="50" height="90" stroke-width="2"/>
+    <circle cx="325" cy="120" r="22" stroke-width="2"/>
+    <path d="M40 220 L40 260 M360 220 L360 260" stroke-width="2"/>
+  </svg>
+
+  <svg class="bg-platform" viewBox="0 0 380 320" xmlns="http://www.w3.org/2000/svg">
+    <path d="M40 280 L120 60 L150 60 L130 280" stroke-width="2"/>
+    <path d="M230 280 L250 60 L280 60 L300 280" stroke-width="2"/>
+    <path d="M40 280 H300" stroke-width="2"/>
+    <path d="M120 220 H230" stroke-width="2"/>
+    <path d="M130 160 H260" stroke-width="2"/>
+    <rect x="150" y="20" width="40" height="40" stroke-width="2"/>
+    <path d="M170 20 V0" stroke-width="2"/>
+    <path d="M60 280 L20 320 M280 280 L320 320" stroke-width="2"/>
+  </svg>
+
+  <svg class="bg-ship" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 120 L60 160 H340 L380 120 Z" stroke-width="2"/>
+    <rect x="90" y="70" width="50" height="50" stroke-width="2"/>
+    <rect x="160" y="40" width="30" height="80" stroke-width="2"/>
+    <path d="M250 120 V40 L290 40 V120" stroke-width="2"/>
+    <path d="M270 40 V15" stroke-width="2"/>
+    <path d="M0 160 H400" stroke-width="2"/>
+  </svg>
+</div>
+
 <header class="site">
   <div class="wrap">
-    <div class="brand">
-      <span class="mark"></span>
-      RISK2SAFE
-      <small>R. KANNAN</small>
-    </div>
+    <div class="brand"><span class="mark"></span>RISK2SAFE</div>
     <nav class="site-nav">
-      <a href="#identification">Identification</a>
-      <a href="#assessment">Assessment</a>
-      <a href="#audit">Audit</a>
-      <a href="#response">Response</a>
+      <a href="#identification">Hazard Identification</a>
+      <a href="#assessment">Risk Assessment</a>
+      <a href="#audit">Audit &amp; Investigation</a>
+      <a href="#response">Emergency Response</a>
     </nav>
   </div>
 </header>
 
 <section class="hero">
   <div class="wrap">
-    <div class="eyebrow">Process Safety Engineering Toolkit</div>
+    <div class="eyebrow">Process Safety &amp; Crisis Management Toolkit</div>
     <h1 class="hero-title">Tools built at the <em>rig face</em>, not the whiteboard.</h1>
     <p class="hero-sub">
-      A working set of process safety applications — HAZOP, bowtie, risk assessment, PSM audit,
-      and emergency scenario tools — built from three decades across upstream, downstream,
-      offshore, and EPC oil &amp; gas operations. Grounded in EI, OPITO, API, and ISO standards,
-      not generic templates.
+      A working set of safety engineering applications, built from three decades inside
+      upstream, downstream, offshore platforms, and EPC oil &amp; gas operations — where the
+      cost of a missed hazard is measured in more than paperwork.
     </p>
     <div class="hero-meta">
-      <div class="stat"><span class="num">13</span><span class="lbl">tools in active development</span></div>
+      <div class="stat"><span class="num">13</span><span class="lbl">applications in active use</span></div>
       <div class="stat"><span class="num">30+</span><span class="lbl">years field experience</span></div>
-      <div class="stat"><span class="num">4</span><span class="lbl">standards frameworks referenced</span></div>
+      <div class="stat"><span class="num">5</span><span class="lbl">safety disciplines covered</span></div>
     </div>
   </div>
 </section>
 
+<!-- ============== DISCIPLINE NARRATIVE ============== -->
+<section class="pillars">
+  <div class="wrap">
+    <div class="pillars-head">
+      <div class="eyebrow">Why these five disciplines</div>
+      <h2>Safety isn't one job. It's five overlapping ones, running at once.</h2>
+      <p>
+        On a live asset, a process upset, a heat-stress incident, and a site evacuation can
+        all be unfolding in the same hour — and each calls on a different discipline,
+        a different standard, and a different team. These applications were built to mirror
+        that reality: structured around the five pillars that actually run a safety case,
+        not a single generic "EHS" bucket.
+      </p>
+    </div>
+
+    <div class="pillar-grid">
+
+      <div class="pillar" style="--accent:#E0954A">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="var(--amber-bright)" stroke-width="2">
+          <path d="M24 6 L42 16 V32 L24 42 L6 32 V16 Z"/>
+          <path d="M24 18 V26 M24 32 V33"/>
+        </svg>
+        <h3>Occupational Safety</h3>
+        <p>
+          The everyday discipline of keeping people safe at the point of work — permit-to-work
+          integrity, working-at-height controls, confined space entry, and the behavioural
+          observation programs that catch drift before it becomes an incident.
+        </p>
+        <div class="tag">PTW · BBS · LIFE-SAVING RULES</div>
+      </div>
+
+      <div class="pillar" style="--accent:#2C8A73">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="var(--green-bright)" stroke-width="2">
+          <rect x="10" y="20" width="8" height="20"/>
+          <rect x="20" y="12" width="8" height="28"/>
+          <rect x="30" y="24" width="8" height="16"/>
+          <path d="M14 20 L14 8 M24 12 L24 4 M34 24 L34 16"/>
+        </svg>
+        <h3>Process Safety</h3>
+        <p>
+          The engineering discipline of preventing loss of containment — HAZOP and bowtie
+          barrier analysis, layers of protection, safety-critical element verification, and
+          the management-of-change rigor that keeps a design intent from quietly eroding
+          over twenty years of plant life.
+        </p>
+        <div class="tag">HAZOP · LOPA · SCE INTEGRITY</div>
+      </div>
+
+      <div class="pillar" style="--accent:#4C6B8A">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="#7C9BC0" stroke-width="2">
+          <circle cx="24" cy="24" r="16"/>
+          <path d="M24 14 V24 L31 29"/>
+        </svg>
+        <h3>Industrial Hygiene</h3>
+        <p>
+          The science of exposure — noise, vapour, particulate, heat, and radiation — measured,
+          modelled, and controlled before they become an occupational illness statistic rather
+          than a recordable incident.
+        </p>
+        <div class="tag">EXPOSURE MONITORING · IH SURVEYS</div>
+      </div>
+
+      <div class="pillar" style="--accent:#B0492F">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="#D06850" stroke-width="2">
+          <path d="M24 6 V14 M24 34 V42 M6 24 H14 M34 24 H42"/>
+          <circle cx="24" cy="24" r="9"/>
+        </svg>
+        <h3>Business Continuity</h3>
+        <p>
+          The discipline of keeping the organisation running when an operation can't — business
+          impact analysis, recovery strategies, and the continuity plans that get tested long
+          before the day they're actually needed.
+        </p>
+        <div class="tag">BIA · RECOVERY STRATEGY</div>
+      </div>
+
+      <div class="pillar" style="grid-column: 1 / -1; --accent:#C97A2C">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="var(--amber-bright)" stroke-width="2">
+          <path d="M24 4 L44 40 H4 Z"/>
+          <path d="M24 18 V28 M24 32 V33"/>
+        </svg>
+        <h3>Crisis &amp; Emergency Response</h3>
+        <p>
+          The discipline that's only ever tested under pressure — incident command structure,
+          tiered emergency response, mass notification, and the scenario drills that turn a
+          written plan into muscle memory for the people who'll actually run it.
+        </p>
+        <div class="tag">INCIDENT COMMAND · TIERED RESPONSE · SCENARIO DRILLS</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============== HAZARD IDENTIFICATION ============== -->
 <section class="discipline" id="identification">
   <div class="wrap">
     <div class="discipline-head">
-      <h2>Hazard Identification</h2>
-      <span class="count">03 tools</span>
+      <div class="discipline-icon" style="border-color: rgba(44,138,115,0.4); background: rgba(44,138,115,0.07);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="var(--green-bright)" stroke-width="2"><circle cx="24" cy="24" r="16"/><path d="M24 14 V24 L31 29"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Hazard Identification</h2>
+        <span class="count">03 applications</span>
+      </div>
     </div>
-    <p class="discipline-desc">Structured hazard ID — HAZOP, HAZID, and bowtie barrier analysis for major accident hazards.</p>
+    <p class="discipline-desc">
+      Where every safety case begins: finding the deviation before it finds you. These tools
+      structure the hazard and operability review process, mapping causes to consequences and
+      barriers in a way a spreadsheet never could.
+    </p>
     <div class="tool-grid">
 
-      <a class="tool-card" href="https://kannanpnp.github.io/https-risk2safe.github.io-HAZoP/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#2C8A73" href="https://kannanpnp.github.io/https-risk2safe.github.io-HAZoP/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">HAZOP Studio</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M24 6 L42 16 V32 L24 42 L6 32 V16 Z"/><circle cx="24" cy="24" r="6"/></svg>
+            <span class="tool-name">HAZOP Studio</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">AI-assisted HAZOP with cross-consequence synchronization, bow tie integration, LOPC screening, and degradation factor editing.</p>
-        <div class="tool-spec"><span class="std">IEC 61882</span><span class="arrow">→</span></div>
+        <p class="tool-desc">AI-assisted hazard and operability study with cross-consequence synchronisation, integrated bow tie generation, loss-of-containment screening, and live degradation factor editing.</p>
+        <p class="tool-use">Use when leading a node-by-node HAZOP on a new design or revalidating an existing one.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
-      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-RA-Studio_HAZID/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#2C8A73" href="https://kannanpnp.github.io/risk2safe-RA-Studio_HAZID/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">RA Studio · HAZID</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="32" height="32" rx="2"/><path d="M16 24 H32 M24 16 V32"/></svg>
+            <span class="tool-name">RA Studio · HAZID</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">Combined risk assessment and hazard identification workflow using the EI 3580 methodology with ADNOC 6×6 matrix scoring.</p>
-        <div class="tool-spec"><span class="std">EI 3580</span><span class="arrow">→</span></div>
+        <p class="tool-desc">Combined risk assessment and hazard identification workspace with configurable risk matrix scoring for fast, structured screening sessions.</p>
+        <p class="tool-use">Use for early-stage hazard identification workshops before a full HAZOP is warranted.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
-      <a class="tool-card" href="https://kannanpnp.github.io/bowtie/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#2C8A73" href="https://kannanpnp.github.io/bowtie/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">BowTie Studio</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 24 L18 14 V34 Z"/><path d="M44 24 L30 14 V34 Z"/><rect x="18" y="20" width="12" height="8"/></svg>
+            <span class="tool-name">BowTie Studio</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">SCE flagging and SCTA generation, with multi-sheet Excel, Word, and PDF export across AI-assisted and manual modes.</p>
-        <div class="tool-spec"><span class="std">CCPS Bow Tie</span><span class="arrow">→</span></div>
+        <p class="tool-desc">Visual barrier analysis with safety-critical element flagging, control assurance task generation, and multi-format export for audit packages.</p>
+        <p class="tool-use">Use to visualise threats, barriers, and consequences for a major accident hazard in one diagram.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
-    </div>
-
-    <div class="note-panel">
-      <span class="dot"></span>
-      <span>Two related repos exist for this discipline — <code style="font-family:var(--mono)">risk2safe_RA-Studio-HAZID-</code> and <code style="font-family:var(--mono)">risk2safe-RA-Studio_HAZID</code>, and <code style="font-family:var(--mono)">bowtie</code> / <code style="font-family:var(--mono)">bowtie-decoder</code>. Confirm which is the canonical, latest version before linking publicly — the others can be archived or redirected.</span>
     </div>
   </div>
 </section>
 
+<!-- ============== RISK ASSESSMENT ============== -->
 <section class="discipline" id="assessment">
   <div class="wrap">
     <div class="discipline-head">
-      <h2>Risk Assessment</h2>
-      <span class="count">02 tools</span>
+      <div class="discipline-icon" style="border-color: rgba(124,155,192,0.4); background: rgba(76,107,138,0.1);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="#7C9BC0" stroke-width="2"><rect x="10" y="20" width="8" height="20"/><rect x="20" y="12" width="8" height="28"/><rect x="30" y="24" width="8" height="16"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Risk Assessment</h2>
+        <span class="count">02 applications</span>
+      </div>
     </div>
-    <p class="discipline-desc">Quantified and structured risk scoring for operational, construction, and design-phase decisions.</p>
+    <p class="discipline-desc">
+      Turning identified hazards into ranked, defensible decisions — what gets fixed first,
+      what gets a barrier, and what's tolerable as-is, before a single shovel hits ground.
+    </p>
     <div class="tool-grid">
 
-      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-ra-studio/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#4C6B8A" href="https://kannanpnp.github.io/risk2safe-ra-studio/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">RA Studio</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="10" y="20" width="8" height="20"/><rect x="20" y="12" width="8" height="28"/><rect x="30" y="24" width="8" height="16"/></svg>
+            <span class="tool-name">RA Studio</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">Core risk assessment engine built on the EI 3580 methodology with configurable ADNOC 6×6 risk matrix scoring.</p>
-        <div class="tool-spec"><span class="std">EI 3580</span><span class="arrow">→</span></div>
+        <p class="tool-desc">Core risk assessment engine with configurable risk matrix scoring, designed for operational, design-phase, and task-based assessments alike.</p>
+        <p class="tool-use">Use as the default tool for any structured risk assessment requiring traceable scoring.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
-      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-constructability-review/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#4C6B8A" href="https://kannanpnp.github.io/risk2safe-constructability-review/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">Constructability Review</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 40 V16 L24 6 L38 16 V40 Z"/><path d="M18 40 V26 H30 V40"/></svg>
+            <span class="tool-name">Constructability Review</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">19-guideword node hierarchy with a 74-question structured constructability questionnaire and Excel export.</p>
-        <div class="tool-spec"><span class="std">EI / Internal</span><span class="arrow">→</span></div>
+        <p class="tool-desc">A structured guideword hierarchy walking the full construction lifecycle, with a detailed questionnaire and exportable findings register.</p>
+        <p class="tool-use">Use during design review to surface buildability and sequencing risks before construction starts.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
     </div>
   </div>
 </section>
 
+<!-- ============== AUDIT & INVESTIGATION ============== -->
 <section class="discipline" id="audit">
   <div class="wrap">
     <div class="discipline-head">
-      <h2>Audit &amp; Investigation</h2>
-      <span class="count">03 tools</span>
+      <div class="discipline-icon" style="border-color: rgba(208,104,80,0.4); background: rgba(176,73,47,0.08);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="#D06850" stroke-width="2"><circle cx="20" cy="20" r="12"/><path d="M29 29 L40 40"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Audit &amp; Investigation</h2>
+        <span class="count">03 applications</span>
+      </div>
     </div>
-    <p class="discipline-desc">PSM compliance auditing and structured incident investigation for asset integrity and process safety performance.</p>
+    <p class="discipline-desc">
+      Closing the loop — verifying that the system performs as designed, and when it doesn't,
+      finding the real root cause rather than the convenient one.
+    </p>
     <div class="tool-grid">
 
-      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-PSM-Audit-Studio-Pro/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#B0492F" href="https://kannanpnp.github.io/risk2safe-PSM-Audit-Studio-Pro/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">PSM Audit Studio Pro</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="10" y="6" width="28" height="36" rx="2"/><path d="M16 16 H32 M16 24 H32 M16 32 H26"/></svg>
+            <span class="tool-name">PSM Audit Studio Pro</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">445-question audit framework covering the full Energy Institute PSM element set, for site and corporate-level audits.</p>
-        <div class="tool-spec"><span class="std">EI PSM Framework</span><span class="arrow">→</span></div>
+        <p class="tool-desc">A comprehensive process safety management audit framework spanning every core PSM element, for site and corporate-level verification.</p>
+        <p class="tool-use">Use for periodic PSM compliance audits or a pre-acquisition technical risk review.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
-      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-Incident-Investigation/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#B0492F" href="https://kannanpnp.github.io/risk2safe-Incident-Investigation/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">Incident Investigation</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="24" cy="20" r="10"/><path d="M24 30 V42 M16 42 H32"/></svg>
+            <span class="tool-name">Incident Investigation</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">Structured root-cause and human factors analysis workflow for process safety incident investigation.</p>
-        <div class="tool-spec"><span class="std">HFACS</span><span class="arrow">→</span></div>
+        <p class="tool-desc">A structured root-cause and human factors investigation workflow that builds a defensible chain from event to organisational cause.</p>
+        <p class="tool-use">Use immediately after an incident to run a consistent, evidence-based investigation.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
-      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-register/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#B0492F" href="https://kannanpnp.github.io/risk2safe-register/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">Risk Register</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="10" width="32" height="28" rx="2"/><path d="M8 18 H40 M16 26 H32 M16 32 H24"/></svg>
+            <span class="tool-name">Risk Register</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">Centralized tracking for identified hazards, risk scores, and mitigation actions across assessments.</p>
-        <div class="tool-spec"><span class="std">Internal</span><span class="arrow">→</span></div>
+        <p class="tool-desc">A living register tracking identified hazards, current risk scores, and the status of every mitigation action against them.</p>
+        <p class="tool-use">Use as the single source of truth linking findings from every other tool into one accountable list.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
     </div>
   </div>
 </section>
 
+<!-- ============== EMERGENCY RESPONSE ============== -->
 <section class="discipline" id="response">
   <div class="wrap">
     <div class="discipline-head">
-      <h2>Emergency Response</h2>
-      <span class="count">01 tool</span>
+      <div class="discipline-icon" style="border-color: rgba(224,149,74,0.4); background: rgba(201,122,44,0.08);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="var(--amber-bright)" stroke-width="2"><path d="M24 4 L44 40 H4 Z"/><path d="M24 18 V28 M24 32 V33"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Emergency Response</h2>
+        <span class="count">01 application</span>
+      </div>
     </div>
-    <p class="discipline-desc">Scenario simulation and crisis management training grounded in OPITO and ICS/NIMS frameworks.</p>
+    <p class="discipline-desc">
+      The discipline that only gets tested for real once. Built to turn a written response
+      plan into a rehearsed, scoreable team capability long before it's ever needed in earnest.
+    </p>
     <div class="tool-grid">
 
-      <a class="tool-card" href="https://kannanpnp.github.io/Major-Emergency-Scenario-Developer/" target="_blank" rel="noopener">
+      <a class="tool-card" style="--card-accent:#E0954A" href="https://kannanpnp.github.io/Major-Emergency-Scenario-Developer/" target="_blank" rel="noopener">
         <div class="tool-card-top">
-          <span class="tool-name">Major Emergency Scenario Developer</span>
-          <span class="tool-status status-live">Live</span>
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="24" cy="24" r="18"/><path d="M24 24 L34 16 M24 24 V12"/></svg>
+            <span class="tool-name">Major Emergency Scenario Developer</span>
+          </div>
+          <span class="tool-status">Live</span>
         </div>
-        <p class="tool-desc">Scenario simulator with scoring, SMEAC brief generation, AAR reports, IMT org charts, and METHANE report outputs.</p>
-        <div class="tool-spec"><span class="std">OPITO OIS-194/195</span><span class="arrow">→</span></div>
+        <p class="tool-desc">A scenario simulator with live scoring, automated incident brief generation, after-action reporting, and command structure mapping.</p>
+        <p class="tool-use">Use to run tabletop or live emergency response drills with a scored, repeatable structure.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
       </a>
 
     </div>
@@ -404,11 +605,11 @@
     <div class="footer-grid">
       <div class="footer-brand">
         <div class="brand"><span class="mark"></span>RISK2SAFE</div>
-        <p>Built by Rajagopal Kannan — Senior HSE and Crisis &amp; Emergency Management professional, 30+ years across upstream, downstream, offshore, and EPC oil &amp; gas.</p>
+        <p>A working toolkit for occupational safety, process safety, industrial hygiene, business continuity, and crisis &amp; emergency response — built from inside upstream, downstream, offshore, and EPC oil and gas operations.</p>
       </div>
       <div class="footer-links">
         <div class="footer-col">
-          <h4>Tools</h4>
+          <h4>Disciplines</h4>
           <a href="#identification">Hazard Identification</a>
           <a href="#assessment">Risk Assessment</a>
           <a href="#audit">Audit &amp; Investigation</a>
