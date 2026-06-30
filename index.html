@@ -170,6 +170,18 @@
         body: JSON.stringify(payload)
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        // The Worker isn't deployed/routed in front of this domain yet, so the
+        // request fell through to plain static hosting (e.g. a 404 page) instead
+        // of running the trial-gate logic.
+        throw new Error(
+          'The trial system isn\u2019t connected yet on this domain — the signup endpoint returned a webpage instead of trial data. ' +
+          'This usually means the Cloudflare Worker hasn\u2019t been deployed in front of this site yet. ' +
+          'See the README\u2019s "Part B — Cloudflare steps" section to finish setup.'
+        );
+      }
+
       const data = await res.json();
 
       if (!res.ok) {
