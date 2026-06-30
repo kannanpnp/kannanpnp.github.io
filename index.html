@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk2Safe — Process Safety Tools by Rajagopal Kannan</title>
+<meta name="description" content="A self-built toolkit for HAZOP, risk assessment, PSM audit, and emergency response — engineered from 30+ years in upstream, downstream, and offshore oil and gas.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0B1220;
+    --ink-soft: #141d2e;
+    --surface: #F5F3EE;
+    --surface-line: #e4e0d6;
+    --green: #1B5E4F;
+    --green-bright: #2C8A73;
+    --amber: #C97A2C;
+    --grey: #8B93A1;
+    --white: #FFFFFF;
+    --display: 'Space Grotesk', sans-serif;
+    --body: 'Inter', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ink);
+    color: var(--surface);
+    font-family: var(--body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  a { color: inherit; }
+
+  ::selection { background: var(--green-bright); color: var(--ink); }
+
+  /* ---------- Layout shell ---------- */
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; }
+
+  /* ---------- Header ---------- */
+  header.site {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(11,18,32,0.86);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
+  }
+  header.site .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 18px; padding-bottom: 18px;
+  }
+  .brand {
+    display: flex; align-items: baseline; gap: 10px;
+    font-family: var(--display); font-weight: 600; font-size: 1.05rem;
+    letter-spacing: -0.01em;
+  }
+  .brand .mark {
+    width: 9px; height: 9px; border-radius: 1px;
+    background: var(--green-bright);
+    display: inline-block;
+    transform: rotate(45deg);
+  }
+  .brand small {
+    font-family: var(--mono); font-weight: 400; font-size: 0.7rem;
+    color: var(--grey); letter-spacing: 0.04em;
+  }
+  nav.site-nav { display: flex; gap: 28px; font-size: 0.85rem; color: var(--grey); }
+  nav.site-nav a { text-decoration: none; transition: color 0.15s ease; }
+  nav.site-nav a:hover { color: var(--surface); }
+
+  /* ---------- Hero ---------- */
+  .hero { padding: 96px 0 72px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.75rem; letter-spacing: 0.08em;
+    color: var(--green-bright); text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 22px;
+  }
+  .eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--green-bright); }
+  h1.hero-title {
+    font-family: var(--display); font-weight: 600;
+    font-size: clamp(2.3rem, 5vw, 3.6rem);
+    line-height: 1.07; letter-spacing: -0.02em;
+    max-width: 16ch; color: var(--white);
+  }
+  h1.hero-title em {
+    font-style: normal; color: var(--green-bright);
+  }
+  .hero-sub {
+    margin-top: 22px; font-size: 1.08rem; color: var(--grey);
+    max-width: 56ch; line-height: 1.65;
+  }
+  .hero-meta {
+    margin-top: 40px; display: flex; flex-wrap: wrap; gap: 0;
+    border-top: 1px solid rgba(255,255,255,0.1);
+    padding-top: 24px;
+  }
+  .hero-meta .stat {
+    padding-right: 40px; margin-right: 40px;
+    border-right: 1px solid rgba(255,255,255,0.1);
+  }
+  .hero-meta .stat:last-child { border-right: none; }
+  .hero-meta .stat .num {
+    font-family: var(--display); font-size: 1.6rem; font-weight: 600; color: var(--white);
+    display: block;
+  }
+  .hero-meta .stat .lbl {
+    font-size: 0.78rem; color: var(--grey); margin-top: 2px; display: block;
+  }
+
+  /* ---------- Discipline sections ---------- */
+  .discipline { padding: 64px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .discipline:last-of-type { border-bottom: none; }
+  .discipline-head {
+    display: flex; align-items: baseline; gap: 16px; margin-bottom: 32px;
+    flex-wrap: wrap;
+  }
+  .discipline-head h2 {
+    font-family: var(--display); font-weight: 600; font-size: 1.5rem;
+    color: var(--white); letter-spacing: -0.01em;
+  }
+  .discipline-head .count {
+    font-family: var(--mono); font-size: 0.75rem; color: var(--grey);
+  }
+  .discipline-desc {
+    font-size: 0.92rem; color: var(--grey); max-width: 60ch; margin-bottom: 28px;
+  }
+
+  .tool-grid {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px;
+  }
+  @media (max-width: 760px) { .tool-grid { grid-template-columns: 1fr; } }
+
+  .tool-card {
+    background: var(--surface); color: var(--ink);
+    border-radius: 4px; padding: 24px;
+    text-decoration: none; display: flex; flex-direction: column; gap: 14px;
+    border: 1px solid transparent;
+    transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
+    position: relative; overflow: hidden;
+  }
+  .tool-card::before {
+    content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+    background: var(--green); transition: background 0.18s ease;
+  }
+  .tool-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--green-bright);
+    box-shadow: 0 12px 28px rgba(0,0,0,0.35);
+  }
+  .tool-card:hover::before { background: var(--amber); }
+
+  .tool-card-top {
+    display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+  }
+  .tool-name {
+    font-family: var(--display); font-weight: 600; font-size: 1.12rem;
+    letter-spacing: -0.01em; line-height: 1.25;
+  }
+  .tool-status {
+    font-family: var(--mono); font-size: 0.65rem; letter-spacing: 0.04em;
+    padding: 3px 7px; border-radius: 2px; white-space: nowrap;
+    text-transform: uppercase; margin-top: 2px;
+  }
+  .status-live { background: rgba(27,94,79,0.12); color: var(--green); }
+  .status-build { background: rgba(201,122,44,0.12); color: var(--amber); }
+
+  .tool-desc { font-size: 0.88rem; color: #4a5568; line-height: 1.55; }
+
+  .tool-spec {
+    font-family: var(--mono); font-size: 0.68rem; color: var(--grey);
+    letter-spacing: 0.02em; padding-top: 12px;
+    border-top: 1px solid var(--surface-line);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .tool-spec .std { color: #5a6478; }
+  .tool-spec .arrow { color: var(--green); font-size: 0.85rem; transition: transform 0.18s ease; }
+  .tool-card:hover .tool-spec .arrow { transform: translateX(3px); color: var(--amber); }
+
+  /* ---------- Note panel ---------- */
+  .note-panel {
+    margin-top: 16px; padding: 16px 20px;
+    background: rgba(201,122,44,0.08); border: 1px solid rgba(201,122,44,0.25);
+    border-radius: 4px; font-size: 0.82rem; color: #d9a672;
+    display: flex; gap: 12px; align-items: flex-start;
+  }
+  .note-panel .dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--amber);
+    margin-top: 6px; flex-shrink: 0;
+  }
+
+  /* ---------- Footer ---------- */
+  footer.site {
+    padding: 56px 0 48px; border-top: 1px solid rgba(255,255,255,0.08);
+  }
+  .footer-grid {
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 32px;
+  }
+  .footer-brand { max-width: 36ch; }
+  .footer-brand .brand { margin-bottom: 12px; }
+  .footer-brand p { font-size: 0.85rem; color: var(--grey); line-height: 1.6; }
+  .footer-links { display: flex; gap: 56px; flex-wrap: wrap; }
+  .footer-col h4 {
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--grey); margin-bottom: 14px;
+  }
+  .footer-col a {
+    display: block; font-size: 0.85rem; color: var(--surface);
+    text-decoration: none; margin-bottom: 9px; opacity: 0.85;
+  }
+  .footer-col a:hover { opacity: 1; color: var(--green-bright); }
+  .footer-bottom {
+    margin-top: 48px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08);
+    display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px;
+    font-size: 0.78rem; color: var(--grey); font-family: var(--mono);
+  }
+
+  @media (max-width: 600px) {
+    .hero { padding: 64px 0 48px; }
+    .hero-meta .stat { padding-right: 24px; margin-right: 24px; }
+  }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="wrap">
+    <div class="brand">
+      <span class="mark"></span>
+      RISK2SAFE
+      <small>R. KANNAN</small>
+    </div>
+    <nav class="site-nav">
+      <a href="#identification">Identification</a>
+      <a href="#assessment">Assessment</a>
+      <a href="#audit">Audit</a>
+      <a href="#response">Response</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Process Safety Engineering Toolkit</div>
+    <h1 class="hero-title">Tools built at the <em>rig face</em>, not the whiteboard.</h1>
+    <p class="hero-sub">
+      A working set of process safety applications — HAZOP, bowtie, risk assessment, PSM audit,
+      and emergency scenario tools — built from three decades across upstream, downstream,
+      offshore, and EPC oil &amp; gas operations. Grounded in EI, OPITO, API, and ISO standards,
+      not generic templates.
+    </p>
+    <div class="hero-meta">
+      <div class="stat"><span class="num">13</span><span class="lbl">tools in active development</span></div>
+      <div class="stat"><span class="num">30+</span><span class="lbl">years field experience</span></div>
+      <div class="stat"><span class="num">4</span><span class="lbl">standards frameworks referenced</span></div>
+    </div>
+  </div>
+</section>
+
+<section class="discipline" id="identification">
+  <div class="wrap">
+    <div class="discipline-head">
+      <h2>Hazard Identification</h2>
+      <span class="count">03 tools</span>
+    </div>
+    <p class="discipline-desc">Structured hazard ID — HAZOP, HAZID, and bowtie barrier analysis for major accident hazards.</p>
+    <div class="tool-grid">
+
+      <a class="tool-card" href="https://kannanpnp.github.io/https-risk2safe.github.io-HAZoP/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">HAZOP Studio</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">AI-assisted HAZOP with cross-consequence synchronization, bow tie integration, LOPC screening, and degradation factor editing.</p>
+        <div class="tool-spec"><span class="std">IEC 61882</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-RA-Studio_HAZID/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">RA Studio · HAZID</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">Combined risk assessment and hazard identification workflow using the EI 3580 methodology with ADNOC 6×6 matrix scoring.</p>
+        <div class="tool-spec"><span class="std">EI 3580</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" href="https://kannanpnp.github.io/bowtie/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">BowTie Studio</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">SCE flagging and SCTA generation, with multi-sheet Excel, Word, and PDF export across AI-assisted and manual modes.</p>
+        <div class="tool-spec"><span class="std">CCPS Bow Tie</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+
+    <div class="note-panel">
+      <span class="dot"></span>
+      <span>Two related repos exist for this discipline — <code style="font-family:var(--mono)">risk2safe_RA-Studio-HAZID-</code> and <code style="font-family:var(--mono)">risk2safe-RA-Studio_HAZID</code>, and <code style="font-family:var(--mono)">bowtie</code> / <code style="font-family:var(--mono)">bowtie-decoder</code>. Confirm which is the canonical, latest version before linking publicly — the others can be archived or redirected.</span>
+    </div>
+  </div>
+</section>
+
+<section class="discipline" id="assessment">
+  <div class="wrap">
+    <div class="discipline-head">
+      <h2>Risk Assessment</h2>
+      <span class="count">02 tools</span>
+    </div>
+    <p class="discipline-desc">Quantified and structured risk scoring for operational, construction, and design-phase decisions.</p>
+    <div class="tool-grid">
+
+      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-ra-studio/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">RA Studio</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">Core risk assessment engine built on the EI 3580 methodology with configurable ADNOC 6×6 risk matrix scoring.</p>
+        <div class="tool-spec"><span class="std">EI 3580</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-constructability-review/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">Constructability Review</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">19-guideword node hierarchy with a 74-question structured constructability questionnaire and Excel export.</p>
+        <div class="tool-spec"><span class="std">EI / Internal</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<section class="discipline" id="audit">
+  <div class="wrap">
+    <div class="discipline-head">
+      <h2>Audit &amp; Investigation</h2>
+      <span class="count">03 tools</span>
+    </div>
+    <p class="discipline-desc">PSM compliance auditing and structured incident investigation for asset integrity and process safety performance.</p>
+    <div class="tool-grid">
+
+      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-PSM-Audit-Studio-Pro/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">PSM Audit Studio Pro</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">445-question audit framework covering the full Energy Institute PSM element set, for site and corporate-level audits.</p>
+        <div class="tool-spec"><span class="std">EI PSM Framework</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-Incident-Investigation/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">Incident Investigation</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">Structured root-cause and human factors analysis workflow for process safety incident investigation.</p>
+        <div class="tool-spec"><span class="std">HFACS</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" href="https://kannanpnp.github.io/risk2safe-register/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">Risk Register</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">Centralized tracking for identified hazards, risk scores, and mitigation actions across assessments.</p>
+        <div class="tool-spec"><span class="std">Internal</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<section class="discipline" id="response">
+  <div class="wrap">
+    <div class="discipline-head">
+      <h2>Emergency Response</h2>
+      <span class="count">01 tool</span>
+    </div>
+    <p class="discipline-desc">Scenario simulation and crisis management training grounded in OPITO and ICS/NIMS frameworks.</p>
+    <div class="tool-grid">
+
+      <a class="tool-card" href="https://kannanpnp.github.io/Major-Emergency-Scenario-Developer/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <span class="tool-name">Major Emergency Scenario Developer</span>
+          <span class="tool-status status-live">Live</span>
+        </div>
+        <p class="tool-desc">Scenario simulator with scoring, SMEAC brief generation, AAR reports, IMT org charts, and METHANE report outputs.</p>
+        <div class="tool-spec"><span class="std">OPITO OIS-194/195</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="brand"><span class="mark"></span>RISK2SAFE</div>
+        <p>Built by Rajagopal Kannan — Senior HSE and Crisis &amp; Emergency Management professional, 30+ years across upstream, downstream, offshore, and EPC oil &amp; gas.</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Tools</h4>
+          <a href="#identification">Hazard Identification</a>
+          <a href="#assessment">Risk Assessment</a>
+          <a href="#audit">Audit &amp; Investigation</a>
+          <a href="#response">Emergency Response</a>
+        </div>
+        <div class="footer-col">
+          <h4>Connect</h4>
+          <a href="https://github.com/kannanpnp" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://risk2safe.com" target="_blank" rel="noopener">risk2safe.com</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 RISK2SAFE / H²S CONSULTANTS PVT LTD</span>
+      <span>app.risk2safe.com</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
