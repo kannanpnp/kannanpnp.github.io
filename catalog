@@ -1,0 +1,262 @@
+/**
+ * Risk2Safe — 7-Day Trial Gate (SIGNUP-WALL MODE)
+ * Cloudflare Worker
+ *
+ * Flow:
+ *   1. Visitor hits app.risk2safe.com (any path) with no valid trial
+ *      → served the signup page (PUBLIC_PATHS below), nothing else is reachable
+ *   2. POST /api/start-trial → records signup in KV, issues a signed cookie
+ *   3. Once the cookie + KV record are valid, ALL paths (the tool catalog,
+ *      every individual tool repo proxied through TOOL_ROUTES) become reachable
+ *   4. After 7 days, every request redirects to /trial-expired
+ *      ("contact us" page with a mailto: link for enterprise enquiries)
+ *
+ * Requires (set via `wrangler secret put` or the Cloudflare dashboard):
+ *   - SIGNING_SECRET   : random string used to sign trial tokens (HMAC)
+ *   - TRIALS           : a KV namespace binding (stores trial records + leads)
+ *   - NOTIFY_WEBHOOK    (optional) : a URL (e.g. Zapier/Make/Slack) to notify you of new signups
+ *
+ * Required KV namespace: create one in the Cloudflare dashboard called TRIALS
+ * and bind it to this Worker as `TRIALS` under Settings → Variables.
+ */
+
+const TRIAL_DAYS = 7;
+const COOKIE_NAME = "r2s_trial";
+
+// Paths reachable WITHOUT a valid trial — keep this list short and deliberate.
+// Everything not listed here requires a valid, unexpired trial cookie.
+const PUBLIC_PATHS = [
+  "/",                  // the signup form itself
+  "/api/start-trial",   // the endpoint the signup form submits to
+  "/trial-expired",     // shown after the 7 days are up
+  "/favicon.ico",
+];
+
+function isPublicPath(pathname) {
+  // Exact match, or static asset extensions (css/js/images) needed to render
+  // the signup + expired pages themselves.
+  if (PUBLIC_PATHS.includes(pathname)) return true;
+  if (/\.(css|js|png|jpg|jpeg|svg|webp|woff2?|ico)$/i.test(pathname)) return true;
+  return false;
+}
+
+// ---------- Small HMAC signing helpers (no external deps, Worker-native) ----------
+
+async function hmacSign(secret, message) {
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey(
+    "raw", enc.encode(secret),
+    { name: "HMAC", hash: "SHA-256" },
+    false, ["sign"]
+  );
+  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
+  return bufferToHex(sig);
+}
+
+function bufferToHex(buf) {
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+async function makeToken(secret, payloadObj) {
+  const payload = btoa(JSON.stringify(payloadObj));
+  const sig = await hmacSign(secret, payload);
+  return `${payload}.${sig}`;
+}
+
+async function verifyToken(secret, token) {
+  if (!token || !token.includes(".")) return null;
+  const [payload, sig] = token.split(".");
+  const expectedSig = await hmacSign(secret, payload);
+  if (sig !== expectedSig) return null; // tampered or wrong secret
+  try {
+    return JSON.parse(atob(payload));
+  } catch {
+    return null;
+  }
+}
+
+function parseCookies(req) {
+  const header = req.headers.get("Cookie") || "";
+  return Object.fromEntries(
+    header.split(";").filter(Boolean).map(c => {
+      const [k, ...v] = c.trim().split("=");
+      return [k, decodeURIComponent(v.join("="))];
+    })
+  );
+}
+
+function formatDate(d) {
+  return d.toISOString().slice(0, 10);
+}
+
+// ---------- Main fetch handler ----------
+
+export default {
+  async fetch(request, env, ctx) {
+    const url = new URL(request.url);
+
+    // CORS preflight for the signup form's fetch() call
+    if (request.method === "OPTIONS") {
+      return new Response(null, {
+        headers: {
+          "Access-Control-Allow-Origin": url.origin,
+          "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+          "Access-Control-Allow-Headers": "Content-Type",
+          "Access-Control-Allow-Credentials": "true",
+        },
+      });
+    }
+
+    // ---- 1. Start a new trial (always public) ----
+    if (url.pathname === "/api/start-trial" && request.method === "POST") {
+      return handleStartTrial(request, env, url);
+    }
+
+    // ---- 2. Public paths (signup form, trial-expired page, static assets) pass straight through ----
+    if (isPublicPath(url.pathname)) {
+      return fetch(request);
+    }
+
+    // ---- 3. Everything else requires a valid, unexpired trial ----
+    return handleGatedRequest(request, env, url, ctx);
+  },
+};
+
+// ===================================================================
+// Handler: gate ANY non-public request site-wide
+// ===================================================================
+async function handleGatedRequest(request, env, url, ctx) {
+  const cookies = parseCookies(request);
+  const token = cookies[COOKIE_NAME];
+
+  const payload = await verifyToken(env.SIGNING_SECRET, token);
+
+  if (!payload) {
+    // No valid trial cookie at all — send them to the signup form
+    return Response.redirect(`${url.origin}/`, 302);
+  }
+
+  // Re-check against the authoritative KV record (cookie alone isn't enough —
+  // this lets you revoke or extend a trial server-side at any time, from the
+  // Cloudflare dashboard, without touching code)
+  const recordRaw = await env.TRIALS.get(`trial:${payload.email}`);
+  if (!recordRaw) {
+    return Response.redirect(`${url.origin}/trial-expired`, 302);
+  }
+
+  const record = JSON.parse(recordRaw);
+  const elapsedDays = (Date.now() - record.start) / 86400000;
+
+  if (elapsedDays > TRIAL_DAYS) {
+    return Response.redirect(`${url.origin}/trial-expired`, 302);
+  }
+
+  // Valid trial — pass the request through to the actual content
+  // (the discipline-grouped tool catalog, and every individual tool repo).
+  return fetch(request);
+}
+
+// ===================================================================
+// Handler: create a trial record + signed cookie
+// ===================================================================
+async function handleStartTrial(request, env, url) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid request body." }, 400, url);
+  }
+
+  const { name, email, company, phone, purpose, userCount } = body;
+
+  if (!name || !email || !company || !phone || !purpose || !userCount) {
+    return json({ error: "All fields are required." }, 400, url);
+  }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "Please enter a valid email address." }, 400, url);
+  }
+
+  const emailKey = email.trim().toLowerCase();
+
+  // Prevent the same email from restarting the clock repeatedly
+  const existing = await env.TRIALS.get(`trial:${emailKey}`);
+  if (existing) {
+    const record = JSON.parse(existing);
+    const token = await makeToken(env.SIGNING_SECRET, {
+      email: emailKey,
+      start: record.start,
+    });
+    return json(
+      {
+        startDate: formatDate(new Date(record.start)),
+        expiryDate: formatDate(new Date(record.start + TRIAL_DAYS * 86400000)),
+        existing: true,
+      },
+      200,
+      url,
+      setCookieHeader(token)
+    );
+  }
+
+  const startMs = Date.now();
+  const record = {
+    name, email: emailKey, company, phone, purpose, userCount,
+    start: startMs,
+    createdAt: new Date(startMs).toISOString(),
+  };
+
+  // Store the trial record (TTL slightly beyond the trial window so it
+  // naturally expires from KV, but we still keep a permanent lead log below)
+  await env.TRIALS.put(`trial:${emailKey}`, JSON.stringify(record), {
+    expirationTtl: (TRIAL_DAYS + 30) * 86400, // keep 30 days past expiry for sales follow-up
+  });
+
+  // Permanent lead log (separate key, never auto-expires) for your CRM/export
+  const leadId = `lead:${startMs}:${emailKey}`;
+  await env.TRIALS.put(leadId, JSON.stringify(record));
+
+  // Optional: notify yourself (Slack/email/Zapier webhook) of every new trial signup
+  if (env.NOTIFY_WEBHOOK) {
+    try {
+      await fetch(env.NOTIFY_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: `New Risk2Safe trial: ${name} (${company}) — ${email} — ${phone} — ${purpose}, ${userCount} users`,
+        }),
+      });
+    } catch {
+      // Don't block signup if the notification fails
+    }
+  }
+
+  const token = await makeToken(env.SIGNING_SECRET, { email: emailKey, start: startMs });
+
+  return json(
+    {
+      startDate: formatDate(new Date(startMs)),
+      expiryDate: formatDate(new Date(startMs + TRIAL_DAYS * 86400000)),
+    },
+    200,
+    url,
+    setCookieHeader(token)
+  );
+}
+
+// ===================================================================
+// Small helpers
+// ===================================================================
+function setCookieHeader(token) {
+  const maxAge = (TRIAL_DAYS + 30) * 86400; // cookie persists slightly beyond trial so /trial-expired can read context
+  return `${COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Lax`;
+}
+
+function json(obj, status, url, cookie) {
+  const headers = {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": url.origin,
+    "Access-Control-Allow-Credentials": "true",
+  };
+  if (cookie) headers["Set-Cookie"] = cookie;
+  return new Response(JSON.stringify(obj), { status, headers });
+}
