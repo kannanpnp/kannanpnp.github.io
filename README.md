@@ -21,7 +21,27 @@ visitor's browser — so clearing cookies or using incognito does not reset the 
 
 ---
 
-## Part A — GitHub steps (do this first, it's the easy part)
+## ⚠️ Before you test: this won't work until Part B is done
+
+If you open `signup/index.html` directly on GitHub Pages (or as a local file) and
+click "Start 7-day trial" before finishing Part B below, you'll see an error like
+`Unexpected token '<', "<html> <he"... is not valid JSON`. **This is expected, not a
+bug.** GitHub Pages only serves static files — there's no `/api/start-trial`
+endpoint there at all, so the request falls through to a 404 page, and the form's
+JSON parser chokes on the `<` at the start of that HTML page.
+
+The form has been updated to catch this case and show a plain message instead
+("the trial system isn't connected yet on this domain…"), but the real fix is
+completing **Part B — Cloudflare steps**, which is what actually makes
+`/api/start-trial` exist and respond with real JSON. Until then, the signup page
+will render correctly and look right, it just can't process a submission yet.
+
+If you want to verify the form logic works before committing to the full DNS
+migration, see "Testing locally before going live" near the bottom of this file.
+
+---
+
+
 
 ### A1. Replace your homepage with the signup form
 
@@ -173,6 +193,27 @@ wrangler kv:key list --namespace-id=<your-namespace-id> --prefix="feedback:"
 
 If you've set `NOTIFY_WEBHOOK`, you'll also get a Slack/email ping the moment someone
 submits feedback, with the rating and all three answers included in the message.
+
+## Testing locally before going live (optional)
+
+If you want to confirm the signup → trial → expiry → feedback logic works correctly
+before doing the full DNS migration, you can run the Worker on your own machine:
+
+```bash
+cd worker
+wrangler dev
+```
+
+This starts a local server (usually at `http://localhost:8787`) running your actual
+Worker code against a local test KV store — no real DNS or deployment needed yet.
+
+To point the signup form at it temporarily: open `signup/index.html`, find the line
+`fetch('/api/start-trial', {`, and change it to
+`fetch('http://localhost:8787/api/start-trial', {`. Do the same in
+`worker/trial-expired.html` for the `/api/submit-feedback` call. **Remember to
+change both back to their relative paths (`/api/start-trial` and
+`/api/submit-feedback`) before deploying for real** — in production, the Worker and
+the pages share the same domain, so relative paths are correct and required.
 
 ## What I can't do for you
 
