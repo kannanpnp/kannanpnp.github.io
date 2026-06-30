@@ -8,61 +8,238 @@
 <style>
   :root {
     --ink:#0B1220; --surface:#F5F3EE; --green:#1B5E4F; --green-bright:#2C8A73;
-    --amber:#C97A2C; --grey:#8B93A1; --display:'Space Grotesk',sans-serif;
-    --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+    --amber:#C97A2C; --amber-bright:#E0954A; --rust:#B0492F; --grey:#8B93A1;
+    --display:'Space Grotesk',sans-serif; --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
   }
   * { margin:0; padding:0; box-sizing:border-box; }
   body {
     background: var(--ink); color: var(--surface); font-family: var(--body);
-    min-height: 100vh; display: flex; align-items: center; justify-content: center;
-    padding: 32px 20px;
+    min-height: 100vh; padding: 48px 20px;
+    display: flex; align-items: flex-start; justify-content: center;
   }
+  .stack { width: 100%; max-width: 560px; display: flex; flex-direction: column; gap: 18px; }
+
   .panel {
-    width: 100%; max-width: 520px; background: var(--surface); color: var(--ink);
-    border-radius: 6px; padding: 44px 40px; text-align: center; position: relative; overflow: hidden;
+    background: var(--surface); color: var(--ink);
+    border-radius: 6px; padding: 36px 36px; position: relative; overflow: hidden;
   }
   .panel::before {
     content:''; position:absolute; top:0; left:0; right:0; height:3px;
-    background: linear-gradient(90deg, var(--amber), #B0492F);
   }
-  .icon { width: 48px; height: 48px; margin: 0 auto 20px; }
+  .panel-expiry::before { background: linear-gradient(90deg, var(--amber), var(--rust)); }
+  .panel-feedback::before { background: linear-gradient(90deg, var(--green-bright), var(--amber-bright)); }
+
+  /* ---- Expiry panel ---- */
+  .panel-expiry { text-align: center; }
+  .icon { width: 44px; height: 44px; margin: 0 auto 16px; }
   .eyebrow {
-    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em;
-    color: var(--amber); text-transform: uppercase; margin-bottom: 10px;
+    font-family: var(--mono); font-size: 0.7rem; letter-spacing: 0.06em;
+    text-transform: uppercase; margin-bottom: 10px;
   }
-  h1 { font-family: var(--display); font-weight: 600; font-size: 1.6rem; letter-spacing: -0.01em; margin-bottom: 14px; }
-  p.sub { font-size: 0.94rem; color: #5a6478; line-height: 1.7; margin-bottom: 28px; }
-  .cta-row { display: flex; gap: 12px; flex-direction: column; }
+  .panel-expiry .eyebrow { color: var(--amber); }
+  .panel-feedback .eyebrow { color: var(--green); }
+  h1 { font-family: var(--display); font-weight: 600; font-size: 1.45rem; letter-spacing: -0.01em; margin-bottom: 12px; }
+  p.sub { font-size: 0.9rem; color: #5a6478; line-height: 1.65; margin-bottom: 22px; }
+  .cta-row { display: flex; gap: 10px; flex-direction: column; }
   a.btn {
-    display: block; padding: 13px; border-radius: 4px; text-decoration: none;
-    font-family: var(--display); font-weight: 600; font-size: 0.92rem;
+    display: block; padding: 12px; border-radius: 4px; text-decoration: none;
+    font-family: var(--display); font-weight: 600; font-size: 0.88rem; text-align: center;
   }
   a.btn-primary { background: var(--green); color: #fff; }
   a.btn-primary:hover { background: var(--green-bright); }
   a.btn-secondary { background: transparent; color: var(--ink); border: 1px solid #d8d4c8; }
-  .fine-print { margin-top: 22px; font-size: 0.78rem; color: var(--grey); }
+  .fine-print { margin-top: 18px; font-size: 0.74rem; color: var(--grey); }
+
+  /* ---- Feedback panel ---- */
+  .panel-feedback h2 {
+    font-family: var(--display); font-weight: 600; font-size: 1.25rem;
+    letter-spacing: -0.01em; margin-bottom: 8px;
+  }
+  .panel-feedback p.sub { margin-bottom: 24px; }
+
+  .star-row { display: flex; gap: 6px; margin-bottom: 4px; }
+  .star {
+    width: 34px; height: 34px; cursor: pointer; stroke: #d8d4c8; stroke-width: 1.5;
+    fill: none; transition: fill 0.12s ease, stroke 0.12s ease;
+  }
+  .star.filled { fill: var(--amber-bright); stroke: var(--amber-bright); }
+  .star-label { font-size: 0.78rem; color: var(--grey); margin-bottom: 22px; min-height: 1em; }
+
+  label {
+    display: block; font-size: 0.78rem; font-weight: 600; color: #2a3441;
+    margin-bottom: 6px; margin-top: 18px;
+  }
+  label:first-of-type { margin-top: 0; }
+  textarea {
+    width: 100%; padding: 11px 13px; border: 1px solid #d8d4c8; border-radius: 4px;
+    font-family: var(--body); font-size: 0.88rem; background: #fff; color: #0B1220;
+    resize: vertical; min-height: 64px; line-height: 1.5;
+  }
+  textarea:focus { outline: 2px solid var(--green-bright); outline-offset: 1px; border-color: var(--green-bright); }
+  .hint { font-size: 0.72rem; color: var(--grey); margin-top: 4px; }
+
+  button[type="submit"] {
+    width: 100%; margin-top: 24px; padding: 13px; border: none; border-radius: 4px;
+    background: var(--green); color: #fff; font-family: var(--display); font-weight: 600;
+    font-size: 0.92rem; cursor: pointer; transition: background 0.15s ease;
+  }
+  button[type="submit"]:hover { background: var(--green-bright); }
+  button[type="submit"]:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .error-msg {
+    display: none; margin-top: 12px; padding: 10px 12px; background: rgba(176,73,47,0.08);
+    border: 1px solid rgba(176,73,47,0.25); border-radius: 4px; font-size: 0.8rem; color: var(--rust);
+  }
+
+  .feedback-success { display: none; text-align: center; }
+  .feedback-success .check { width: 44px; height: 44px; margin: 0 auto 14px; }
+  .feedback-success h2 { font-size: 1.15rem; margin-bottom: 8px; }
+  .feedback-success p { font-size: 0.86rem; color: #5a6478; line-height: 1.6; }
 </style>
 </head>
 <body>
 
-<div class="panel">
-  <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="#C97A2C" stroke-width="2">
-    <circle cx="24" cy="24" r="18"/>
-    <path d="M24 14 V24 L31 29"/>
-  </svg>
-  <div class="eyebrow">Trial Period Ended</div>
-  <h1>Your 7-day trial has wrapped up</h1>
-  <p class="sub">
-    Thanks for spending the week with the Risk2Safe toolkit. To keep using HAZOP Studio,
-    RA Studio, BowTie Studio, and the rest of the suite, get in touch and we'll set you
-    up with a plan that fits your team's size and the way you work.
-  </p>
-  <div class="cta-row">
-    <a class="btn btn-primary" href="mailto:contact@risk2safe.com?subject=Risk2Safe%20—%20Continued%20Access%20Enquiry">Contact us about continued access</a>
-    <a class="btn btn-secondary" href="https://risk2safe.com">Back to risk2safe.com</a>
+<div class="stack">
+
+  <!-- ============ Panel 1: Trial ended / contact CTA ============ -->
+  <div class="panel panel-expiry">
+    <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="#C97A2C" stroke-width="2">
+      <circle cx="24" cy="24" r="18"/>
+      <path d="M24 14 V24 L31 29"/>
+    </svg>
+    <div class="eyebrow">Trial Period Ended</div>
+    <h1>Your 7-day trial has wrapped up</h1>
+    <p class="sub">
+      Thanks for spending the week with the Risk2Safe toolkit. To keep using HAZOP Studio,
+      RA Studio, BowTie Studio, and the rest of the suite, get in touch and we'll set you
+      up with a plan that fits your team's size and the way you work.
+    </p>
+    <div class="cta-row">
+      <a class="btn btn-primary" href="mailto:contact@risk2safe.com?subject=Risk2Safe%20—%20Continued%20Access%20Enquiry">Contact us about continued access</a>
+      <a class="btn btn-secondary" href="https://risk2safe.com">Back to risk2safe.com</a>
+    </div>
+    <p class="fine-print">We'll follow up directly using the details from your trial signup.</p>
   </div>
-  <p class="fine-print">We'll follow up directly using the details from your trial signup.</p>
+
+  <!-- ============ Panel 2: Feedback form ============ -->
+  <div class="panel panel-feedback">
+
+    <div id="feedbackFormView">
+      <div class="eyebrow">2 Minutes, While It's Fresh</div>
+      <h2>How was your week with the toolkit?</h2>
+      <p class="sub">Your honest take helps us decide what to fix or build next — there's no wrong answer here.</p>
+
+      <form id="feedbackForm">
+        <label>Overall rating</label>
+        <div class="star-row" id="starRow">
+          <svg class="star" data-value="1" viewBox="0 0 24 24"><path d="M12 2 L14.9 8.6 L22 9.3 L16.7 14 L18.2 21 L12 17.3 L5.8 21 L7.3 14 L2 9.3 L9.1 8.6 Z"/></svg>
+          <svg class="star" data-value="2" viewBox="0 0 24 24"><path d="M12 2 L14.9 8.6 L22 9.3 L16.7 14 L18.2 21 L12 17.3 L5.8 21 L7.3 14 L2 9.3 L9.1 8.6 Z"/></svg>
+          <svg class="star" data-value="3" viewBox="0 0 24 24"><path d="M12 2 L14.9 8.6 L22 9.3 L16.7 14 L18.2 21 L12 17.3 L5.8 21 L7.3 14 L2 9.3 L9.1 8.6 Z"/></svg>
+          <svg class="star" data-value="4" viewBox="0 0 24 24"><path d="M12 2 L14.9 8.6 L22 9.3 L16.7 14 L18.2 21 L12 17.3 L5.8 21 L7.3 14 L2 9.3 L9.1 8.6 Z"/></svg>
+          <svg class="star" data-value="5" viewBox="0 0 24 24"><path d="M12 2 L14.9 8.6 L22 9.3 L16.7 14 L18.2 21 L12 17.3 L5.8 21 L7.3 14 L2 9.3 L9.1 8.6 Z"/></svg>
+        </div>
+        <div class="star-label" id="starLabel">&nbsp;</div>
+
+        <label for="merits">What worked well? (merits)</label>
+        <textarea id="merits" name="merits" placeholder="e.g. the HAZOP cross-consequence sync saved us real review time..."></textarea>
+
+        <label for="demerits">What didn't? (demerits)</label>
+        <textarea id="demerits" name="demerits" placeholder="e.g. the bowtie export was slow on larger diagrams..."></textarea>
+
+        <label for="improvements">What should we improve or add next?</label>
+        <textarea id="improvements" name="improvements" placeholder="e.g. multi-user collaboration, offline mode..."></textarea>
+        <p class="hint">All fields are optional except the rating — even a quick rating alone is genuinely useful to us.</p>
+
+        <button type="submit" id="feedbackSubmitBtn">Submit feedback</button>
+        <div class="error-msg" id="feedbackError"></div>
+      </form>
+    </div>
+
+    <div id="feedbackSuccessView" class="feedback-success">
+      <svg class="check" viewBox="0 0 52 52" fill="none">
+        <circle cx="26" cy="26" r="25" stroke="#1B5E4F" stroke-width="2"/>
+        <path d="M14 27 L22 35 L38 18" stroke="#2C8A73" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <h2>Thank you — that's genuinely useful.</h2>
+      <p>Your feedback has been recorded and will directly shape what we build next.</p>
+    </div>
+
+  </div>
+
 </div>
+
+<script>
+  // ---- Star rating interaction ----
+  const starLabels = { 1: "Poor", 2: "Below average", 3: "Good", 4: "Very good", 5: "Excellent" };
+  const stars = document.querySelectorAll('#starRow .star');
+  const starLabel = document.getElementById('starLabel');
+  let selectedRating = 0;
+
+  function paintStars(value) {
+    stars.forEach(s => {
+      s.classList.toggle('filled', Number(s.dataset.value) <= value);
+    });
+  }
+
+  stars.forEach(star => {
+    star.addEventListener('mouseenter', () => paintStars(Number(star.dataset.value)));
+    star.addEventListener('mouseleave', () => paintStars(selectedRating));
+    star.addEventListener('click', () => {
+      selectedRating = Number(star.dataset.value);
+      paintStars(selectedRating);
+      starLabel.textContent = `${selectedRating} / 5 — ${starLabels[selectedRating]}`;
+    });
+  });
+
+  // ---- Feedback submission ----
+  const feedbackForm = document.getElementById('feedbackForm');
+  const feedbackError = document.getElementById('feedbackError');
+  const feedbackSubmitBtn = document.getElementById('feedbackSubmitBtn');
+
+  feedbackForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    feedbackError.style.display = 'none';
+
+    if (selectedRating === 0) {
+      feedbackError.textContent = 'Please select a star rating before submitting.';
+      feedbackError.style.display = 'block';
+      return;
+    }
+
+    feedbackSubmitBtn.disabled = true;
+    feedbackSubmitBtn.textContent = 'Submitting…';
+
+    const payload = {
+      rating: selectedRating,
+      merits: document.getElementById('merits').value.trim(),
+      demerits: document.getElementById('demerits').value.trim(),
+      improvements: document.getElementById('improvements').value.trim(),
+    };
+
+    try {
+      // Calls the Cloudflare Worker endpoint that stores feedback against
+      // this visitor's trial record (identified via their existing trial cookie).
+      const res = await fetch('/api/submit-feedback', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(payload)
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
+
+      document.getElementById('feedbackFormView').style.display = 'none';
+      document.getElementById('feedbackSuccessView').style.display = 'block';
+
+    } catch (err) {
+      feedbackError.textContent = err.message;
+      feedbackError.style.display = 'block';
+      feedbackSubmitBtn.disabled = false;
+      feedbackSubmitBtn.textContent = 'Submit feedback';
+    }
+  });
+</script>
 
 </body>
 </html>
