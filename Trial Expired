@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trial ended — Risk2Safe</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink:#0B1220; --surface:#F5F3EE; --green:#1B5E4F; --green-bright:#2C8A73;
+    --amber:#C97A2C; --grey:#8B93A1; --display:'Space Grotesk',sans-serif;
+    --body:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body {
+    background: var(--ink); color: var(--surface); font-family: var(--body);
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    padding: 32px 20px;
+  }
+  .panel {
+    width: 100%; max-width: 520px; background: var(--surface); color: var(--ink);
+    border-radius: 6px; padding: 44px 40px; text-align: center; position: relative; overflow: hidden;
+  }
+  .panel::before {
+    content:''; position:absolute; top:0; left:0; right:0; height:3px;
+    background: linear-gradient(90deg, var(--amber), #B0492F);
+  }
+  .icon { width: 48px; height: 48px; margin: 0 auto 20px; }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.72rem; letter-spacing: 0.06em;
+    color: var(--amber); text-transform: uppercase; margin-bottom: 10px;
+  }
+  h1 { font-family: var(--display); font-weight: 600; font-size: 1.6rem; letter-spacing: -0.01em; margin-bottom: 14px; }
+  p.sub { font-size: 0.94rem; color: #5a6478; line-height: 1.7; margin-bottom: 28px; }
+  .cta-row { display: flex; gap: 12px; flex-direction: column; }
+  a.btn {
+    display: block; padding: 13px; border-radius: 4px; text-decoration: none;
+    font-family: var(--display); font-weight: 600; font-size: 0.92rem;
+  }
+  a.btn-primary { background: var(--green); color: #fff; }
+  a.btn-primary:hover { background: var(--green-bright); }
+  a.btn-secondary { background: transparent; color: var(--ink); border: 1px solid #d8d4c8; }
+  .fine-print { margin-top: 22px; font-size: 0.78rem; color: var(--grey); }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <svg class="icon" viewBox="0 0 48 48" fill="none" stroke="#C97A2C" stroke-width="2">
+    <circle cx="24" cy="24" r="18"/>
+    <path d="M24 14 V24 L31 29"/>
+  </svg>
+  <div class="eyebrow">Trial Period Ended</div>
+  <h1>Your 7-day trial has wrapped up</h1>
+  <p class="sub">
+    Thanks for spending the week with the Risk2Safe toolkit. To keep using HAZOP Studio,
+    RA Studio, BowTie Studio, and the rest of the suite, get in touch and we'll set you
+    up with a plan that fits your team's size and the way you work.
+  </p>
+  <div class="cta-row">
+    <a class="btn btn-primary" href="mailto:contact@risk2safe.com?subject=Risk2Safe%20—%20Continued%20Access%20Enquiry">Contact us about continued access</a>
+    <a class="btn btn-secondary" href="https://risk2safe.com">Back to risk2safe.com</a>
+  </div>
+  <p class="fine-print">We'll follow up directly using the details from your trial signup.</p>
+</div>
+
+</body>
+</html>
