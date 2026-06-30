@@ -9,7 +9,9 @@
  *   3. Once the cookie + KV record are valid, ALL paths (the tool catalog,
  *      every individual tool repo proxied through TOOL_ROUTES) become reachable
  *   4. After 7 days, every request redirects to /trial-expired
- *      ("contact us" page with a mailto: link for enterprise enquiries)
+ *      ("contact us" page + a star-rating feedback form)
+ *   5. POST /api/submit-feedback → records rating + merits/demerits/improvements,
+ *      identified via the visitor's existing trial cookie (works even after expiry)
  *
  * Requires (set via `wrangler secret put` or the Cloudflare dashboard):
  *   - SIGNING_SECRET   : random string used to sign trial tokens (HMAC)
@@ -28,6 +30,7 @@ const COOKIE_NAME = "r2s_trial";
 const PUBLIC_PATHS = [
   "/",                  // the signup form itself
   "/api/start-trial",   // the endpoint the signup form submits to
+  "/api/submit-feedback", // the endpoint the post-trial feedback form submits to
   "/trial-expired",     // shown after the 7 days are up
   "/favicon.ico",
 ];
@@ -110,6 +113,11 @@ export default {
     // ---- 1. Start a new trial (always public) ----
     if (url.pathname === "/api/start-trial" && request.method === "POST") {
       return handleStartTrial(request, env, url);
+    }
+
+    // ---- 1b. Submit post-trial feedback (always public — must work even after expiry) ----
+    if (url.pathname === "/api/submit-feedback" && request.method === "POST") {
+      return handleSubmitFeedback(request, env, url);
     }
 
     // ---- 2. Public paths (signup form, trial-expired page, static assets) pass straight through ----
@@ -241,6 +249,73 @@ async function handleStartTrial(request, env, url) {
     url,
     setCookieHeader(token)
   );
+}
+
+// ===================================================================
+// Handler: record post-trial feedback (rating + merits/demerits/improvements)
+// ===================================================================
+async function handleSubmitFeedback(request, env, url) {
+  let body;
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Invalid request body." }, 400, url);
+  }
+
+  const { rating, merits, demerits, improvements } = body;
+  const ratingNum = Number(rating);
+
+  if (!ratingNum || ratingNum < 1 || ratingNum > 5 || !Number.isInteger(ratingNum)) {
+    return json({ error: "Please select a star rating between 1 and 5." }, 400, url);
+  }
+
+  // Identify the visitor via their existing trial cookie. We don't require the
+  // trial to still be "valid" here on purpose — feedback should work right after
+  // expiry, which is exactly when this form is shown.
+  const cookies = parseCookies(request);
+  const token = cookies[COOKIE_NAME];
+  const payload = await verifyToken(env.SIGNING_SECRET, token);
+
+  if (!payload || !payload.email) {
+    return json({ error: "We couldn't identify your trial — please use the link from your original signup." }, 400, url);
+  }
+
+  const emailKey = payload.email;
+  const recordRaw = await env.TRIALS.get(`trial:${emailKey}`);
+  const trialRecord = recordRaw ? JSON.parse(recordRaw) : null;
+
+  const feedbackEntry = {
+    email: emailKey,
+    name: trialRecord?.name || null,
+    company: trialRecord?.company || null,
+    rating: ratingNum,
+    merits: (merits || "").trim(),
+    demerits: (demerits || "").trim(),
+    improvements: (improvements || "").trim(),
+    submittedAt: new Date().toISOString(),
+  };
+
+  // Stored permanently, separate from the (expiring) trial record, so feedback
+  // survives even after the trial record's TTL passes.
+  const feedbackId = `feedback:${Date.now()}:${emailKey}`;
+  await env.TRIALS.put(feedbackId, JSON.stringify(feedbackEntry));
+
+  // Optional: notify yourself of new feedback the same way as new signups
+  if (env.NOTIFY_WEBHOOK) {
+    try {
+      await fetch(env.NOTIFY_WEBHOOK, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          text: `New Risk2Safe trial feedback: ${feedbackEntry.name || emailKey} (${feedbackEntry.company || "—"}) rated ${ratingNum}/5.\nMerits: ${feedbackEntry.merits || "—"}\nDemerits: ${feedbackEntry.demerits || "—"}\nImprovements: ${feedbackEntry.improvements || "—"}`,
+        }),
+      });
+    } catch {
+      // Don't block submission if the notification fails
+    }
+  }
+
+  return json({ ok: true }, 200, url);
 }
 
 // ===================================================================
