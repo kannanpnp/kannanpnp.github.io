@@ -1,337 +1,633 @@
-/**
- * Risk2Safe — 7-Day Trial Gate (SIGNUP-WALL MODE)
- * Cloudflare Worker
- *
- * Flow:
- *   1. Visitor hits app.risk2safe.com (any path) with no valid trial
- *      → served the signup page (PUBLIC_PATHS below), nothing else is reachable
- *   2. POST /api/start-trial → records signup in KV, issues a signed cookie
- *   3. Once the cookie + KV record are valid, ALL paths (the tool catalog,
- *      every individual tool repo proxied through TOOL_ROUTES) become reachable
- *   4. After 7 days, every request redirects to /trial-expired
- *      ("contact us" page + a star-rating feedback form)
- *   5. POST /api/submit-feedback → records rating + merits/demerits/improvements,
- *      identified via the visitor's existing trial cookie (works even after expiry)
- *
- * Requires (set via `wrangler secret put` or the Cloudflare dashboard):
- *   - SIGNING_SECRET   : random string used to sign trial tokens (HMAC)
- *   - TRIALS           : a KV namespace binding (stores trial records + leads)
- *   - NOTIFY_WEBHOOK    (optional) : a URL (e.g. Zapier/Make/Slack) to notify you of new signups
- *
- * Required KV namespace: create one in the Cloudflare dashboard called TRIALS
- * and bind it to this Worker as `TRIALS` under Settings → Variables.
- */
-
-const TRIAL_DAYS = 7;
-const COOKIE_NAME = "r2s_trial";
-
-// Paths reachable WITHOUT a valid trial — keep this list short and deliberate.
-// Everything not listed here requires a valid, unexpired trial cookie.
-const PUBLIC_PATHS = [
-  "/",                  // the signup form itself
-  "/api/start-trial",   // the endpoint the signup form submits to
-  "/api/submit-feedback", // the endpoint the post-trial feedback form submits to
-  "/trial-expired",     // shown after the 7 days are up
-  "/favicon.ico",
-];
-
-function isPublicPath(pathname) {
-  // Exact match, or static asset extensions (css/js/images) needed to render
-  // the signup + expired pages themselves.
-  if (PUBLIC_PATHS.includes(pathname)) return true;
-  if (/\.(css|js|png|jpg|jpeg|svg|webp|woff2?|ico)$/i.test(pathname)) return true;
-  return false;
-}
-
-// ---------- Small HMAC signing helpers (no external deps, Worker-native) ----------
-
-async function hmacSign(secret, message) {
-  const enc = new TextEncoder();
-  const key = await crypto.subtle.importKey(
-    "raw", enc.encode(secret),
-    { name: "HMAC", hash: "SHA-256" },
-    false, ["sign"]
-  );
-  const sig = await crypto.subtle.sign("HMAC", key, enc.encode(message));
-  return bufferToHex(sig);
-}
-
-function bufferToHex(buf) {
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, "0")).join("");
-}
-
-async function makeToken(secret, payloadObj) {
-  const payload = btoa(JSON.stringify(payloadObj));
-  const sig = await hmacSign(secret, payload);
-  return `${payload}.${sig}`;
-}
-
-async function verifyToken(secret, token) {
-  if (!token || !token.includes(".")) return null;
-  const [payload, sig] = token.split(".");
-  const expectedSig = await hmacSign(secret, payload);
-  if (sig !== expectedSig) return null; // tampered or wrong secret
-  try {
-    return JSON.parse(atob(payload));
-  } catch {
-    return null;
-  }
-}
-
-function parseCookies(req) {
-  const header = req.headers.get("Cookie") || "";
-  return Object.fromEntries(
-    header.split(";").filter(Boolean).map(c => {
-      const [k, ...v] = c.trim().split("=");
-      return [k, decodeURIComponent(v.join("="))];
-    })
-  );
-}
-
-function formatDate(d) {
-  return d.toISOString().slice(0, 10);
-}
-
-// ---------- Main fetch handler ----------
-
-export default {
-  async fetch(request, env, ctx) {
-    const url = new URL(request.url);
-
-    // CORS preflight for the signup form's fetch() call
-    if (request.method === "OPTIONS") {
-      return new Response(null, {
-        headers: {
-          "Access-Control-Allow-Origin": url.origin,
-          "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type",
-          "Access-Control-Allow-Credentials": "true",
-        },
-      });
-    }
-
-    // ---- 1. Start a new trial (always public) ----
-    if (url.pathname === "/api/start-trial" && request.method === "POST") {
-      return handleStartTrial(request, env, url);
-    }
-
-    // ---- 1b. Submit post-trial feedback (always public — must work even after expiry) ----
-    if (url.pathname === "/api/submit-feedback" && request.method === "POST") {
-      return handleSubmitFeedback(request, env, url);
-    }
-
-    // ---- 2. Public paths (signup form, trial-expired page, static assets) pass straight through ----
-    if (isPublicPath(url.pathname)) {
-      return fetch(request);
-    }
-
-    // ---- 3. Everything else requires a valid, unexpired trial ----
-    return handleGatedRequest(request, env, url, ctx);
-  },
-};
-
-// ===================================================================
-// Handler: gate ANY non-public request site-wide
-// ===================================================================
-async function handleGatedRequest(request, env, url, ctx) {
-  const cookies = parseCookies(request);
-  const token = cookies[COOKIE_NAME];
-
-  const payload = await verifyToken(env.SIGNING_SECRET, token);
-
-  if (!payload) {
-    // No valid trial cookie at all — send them to the signup form
-    return Response.redirect(`${url.origin}/`, 302);
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Risk2Safe — Process Safety &amp; Crisis Management Toolkit</title>
+<meta name="description" content="A working toolkit for occupational safety, process safety, industrial hygiene, business continuity, and crisis & emergency response — built from three decades in upstream, downstream, offshore, and EPC oil and gas.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --ink: #0B1220;
+    --ink-soft: #121b2c;
+    --ink-card: #16202f;
+    --surface: #F5F3EE;
+    --surface-line: #e4e0d6;
+    --green: #1B5E4F;
+    --green-bright: #2C8A73;
+    --amber: #C97A2C;
+    --amber-bright: #E0954A;
+    --rust: #B0492F;
+    --steel: #4C6B8A;
+    --grey: #8B93A1;
+    --white: #FFFFFF;
+    --display: 'Space Grotesk', sans-serif;
+    --body: 'Inter', sans-serif;
+    --mono: 'JetBrains Mono', monospace;
   }
 
-  // Re-check against the authoritative KV record (cookie alone isn't enough —
-  // this lets you revoke or extend a trial server-side at any time, from the
-  // Cloudflare dashboard, without touching code)
-  const recordRaw = await env.TRIALS.get(`trial:${payload.email}`);
-  if (!recordRaw) {
-    return Response.redirect(`${url.origin}/trial-expired`, 302);
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--ink);
+    color: var(--surface);
+    font-family: var(--body);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    position: relative;
+    overflow-x: hidden;
   }
 
-  const record = JSON.parse(recordRaw);
-  const elapsedDays = (Date.now() - record.start) / 86400000;
+  a { color: inherit; }
+  ::selection { background: var(--green-bright); color: var(--ink); }
 
-  if (elapsedDays > TRIAL_DAYS) {
-    return Response.redirect(`${url.origin}/trial-expired`, 302);
+  .wrap { max-width: 1180px; margin: 0 auto; padding: 0 28px; position: relative; z-index: 2; }
+
+  /* ================= BACKGROUND INDUSTRIAL ART ================= */
+  .bg-art {
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    overflow: hidden;
+  }
+  .bg-art svg { position: absolute; opacity: 0.05; stroke: var(--grey); fill: none; }
+  .bg-refinery { top: 8%; left: -4%; width: 480px; }
+  .bg-platform { top: 48%; right: -6%; width: 420px; }
+  .bg-ship { bottom: 4%; left: 2%; width: 380px; opacity: 0.045; }
+  .bg-pipeline { top: 28%; left: 38%; width: 900px; opacity: 0.035; }
+  @media (max-width: 900px) {
+    .bg-refinery, .bg-platform, .bg-ship { width: 260px; }
+    .bg-pipeline { display: none; }
   }
 
-  // Valid trial — pass the request through to the actual content
-  // (the discipline-grouped tool catalog, and every individual tool repo).
-  return fetch(request);
-}
-
-// ===================================================================
-// Handler: create a trial record + signed cookie
-// ===================================================================
-async function handleStartTrial(request, env, url) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Invalid request body." }, 400, url);
+  /* ================= ANIMATED TOP BORDER ================= */
+  .gauge-border {
+    height: 3px; width: 100%; position: relative; overflow: hidden;
+    background: rgba(255,255,255,0.06);
+  }
+  .gauge-border::before {
+    content: '';
+    position: absolute; top: 0; left: -30%; height: 100%; width: 30%;
+    background: linear-gradient(90deg, transparent, var(--green-bright) 35%, var(--amber-bright) 65%, transparent);
+    animation: sweep 5.5s ease-in-out infinite;
+    filter: blur(0.3px);
+  }
+  @keyframes sweep {
+    0%   { left: -30%; }
+    50%  { left: 100%; }
+    100% { left: -30%; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .gauge-border::before { animation: none; left: 0; width: 100%; opacity: 0.5; }
   }
 
-  const { name, email, company, phone, purpose, userCount } = body;
-
-  if (!name || !email || !company || !phone || !purpose || !userCount) {
-    return json({ error: "All fields are required." }, 400, url);
+  /* ================= HEADER ================= */
+  header.site {
+    position: sticky; top: 0; z-index: 50;
+    background: rgba(11,18,32,0.88);
+    backdrop-filter: blur(10px);
+    border-bottom: 1px solid rgba(255,255,255,0.08);
   }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: "Please enter a valid email address." }, 400, url);
+  header.site .wrap {
+    display: flex; align-items: center; justify-content: space-between;
+    padding-top: 17px; padding-bottom: 17px;
   }
-
-  const emailKey = email.trim().toLowerCase();
-
-  // Prevent the same email from restarting the clock repeatedly
-  const existing = await env.TRIALS.get(`trial:${emailKey}`);
-  if (existing) {
-    const record = JSON.parse(existing);
-    const token = await makeToken(env.SIGNING_SECRET, {
-      email: emailKey,
-      start: record.start,
-    });
-    return json(
-      {
-        startDate: formatDate(new Date(record.start)),
-        expiryDate: formatDate(new Date(record.start + TRIAL_DAYS * 86400000)),
-        existing: true,
-      },
-      200,
-      url,
-      setCookieHeader(token)
-    );
+  .brand {
+    display: flex; align-items: center; gap: 9px;
+    font-family: var(--display); font-weight: 600; font-size: 1.1rem;
+    letter-spacing: -0.01em;
+  }
+  .brand .mark { width: 9px; height: 9px; background: var(--green-bright); transform: rotate(45deg); display: inline-block; flex-shrink: 0; }
+  nav.site-nav { display: flex; gap: 30px; font-size: 0.84rem; color: var(--grey); }
+  nav.site-nav a { text-decoration: none; transition: color 0.15s ease; white-space: nowrap; }
+  nav.site-nav a:hover { color: var(--surface); }
+  .nav-toggle { display: none; }
+  @media (max-width: 760px) {
+    nav.site-nav { display: none; }
   }
 
-  const startMs = Date.now();
-  const record = {
-    name, email: emailKey, company, phone, purpose, userCount,
-    start: startMs,
-    createdAt: new Date(startMs).toISOString(),
-  };
-
-  // Store the trial record (TTL slightly beyond the trial window so it
-  // naturally expires from KV, but we still keep a permanent lead log below)
-  await env.TRIALS.put(`trial:${emailKey}`, JSON.stringify(record), {
-    expirationTtl: (TRIAL_DAYS + 30) * 86400, // keep 30 days past expiry for sales follow-up
-  });
-
-  // Permanent lead log (separate key, never auto-expires) for your CRM/export
-  const leadId = `lead:${startMs}:${emailKey}`;
-  await env.TRIALS.put(leadId, JSON.stringify(record));
-
-  // Optional: notify yourself (Slack/email/Zapier webhook) of every new trial signup
-  if (env.NOTIFY_WEBHOOK) {
-    try {
-      await fetch(env.NOTIFY_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: `New Risk2Safe trial: ${name} (${company}) — ${email} — ${phone} — ${purpose}, ${userCount} users`,
-        }),
-      });
-    } catch {
-      // Don't block signup if the notification fails
-    }
+  /* ================= HERO ================= */
+  .hero { padding: 88px 0 64px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .eyebrow {
+    font-family: var(--mono); font-size: 0.74rem; letter-spacing: 0.08em;
+    color: var(--green-bright); text-transform: uppercase;
+    display: flex; align-items: center; gap: 10px; margin-bottom: 22px;
   }
-
-  const token = await makeToken(env.SIGNING_SECRET, { email: emailKey, start: startMs });
-
-  return json(
-    {
-      startDate: formatDate(new Date(startMs)),
-      expiryDate: formatDate(new Date(startMs + TRIAL_DAYS * 86400000)),
-    },
-    200,
-    url,
-    setCookieHeader(token)
-  );
-}
-
-// ===================================================================
-// Handler: record post-trial feedback (rating + merits/demerits/improvements)
-// ===================================================================
-async function handleSubmitFeedback(request, env, url) {
-  let body;
-  try {
-    body = await request.json();
-  } catch {
-    return json({ error: "Invalid request body." }, 400, url);
+  .eyebrow::before { content: ''; width: 24px; height: 1px; background: var(--green-bright); }
+  h1.hero-title {
+    font-family: var(--display); font-weight: 600;
+    font-size: clamp(2.2rem, 5vw, 3.5rem);
+    line-height: 1.08; letter-spacing: -0.02em;
+    max-width: 17ch; color: var(--white);
   }
+  h1.hero-title em { font-style: normal; color: var(--green-bright); }
+  .hero-sub { margin-top: 22px; font-size: 1.06rem; color: var(--grey); max-width: 58ch; line-height: 1.7; }
+  .hero-meta { margin-top: 40px; display: flex; flex-wrap: wrap; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 24px; }
+  .hero-meta .stat { padding-right: 40px; margin-right: 40px; border-right: 1px solid rgba(255,255,255,0.1); }
+  .hero-meta .stat:last-child { border-right: none; margin-right: 0; padding-right: 0; }
+  .hero-meta .stat .num { font-family: var(--display); font-size: 1.55rem; font-weight: 600; color: var(--white); display: block; }
+  .hero-meta .stat .lbl { font-size: 0.77rem; color: var(--grey); margin-top: 2px; display: block; }
 
-  const { rating, merits, demerits, improvements } = body;
-  const ratingNum = Number(rating);
-
-  if (!ratingNum || ratingNum < 1 || ratingNum > 5 || !Number.isInteger(ratingNum)) {
-    return json({ error: "Please select a star rating between 1 and 5." }, 400, url);
+  /* ================= DISCIPLINE NARRATIVE (pillars) ================= */
+  .pillars { padding: 80px 0 72px; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .pillars-head { max-width: 62ch; margin-bottom: 48px; }
+  .pillars-head .eyebrow { margin-bottom: 16px; }
+  .pillars-head h2 {
+    font-family: var(--display); font-weight: 600; font-size: clamp(1.6rem, 3vw, 2.1rem);
+    color: var(--white); letter-spacing: -0.015em; line-height: 1.2;
   }
+  .pillars-head p { margin-top: 16px; font-size: 0.98rem; color: var(--grey); line-height: 1.7; }
 
-  // Identify the visitor via their existing trial cookie. We don't require the
-  // trial to still be "valid" here on purpose — feedback should work right after
-  // expiry, which is exactly when this form is shown.
-  const cookies = parseCookies(request);
-  const token = cookies[COOKIE_NAME];
-  const payload = await verifyToken(env.SIGNING_SECRET, token);
+  .pillar-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1px; background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.08); }
+  @media (max-width: 760px) { .pillar-grid { grid-template-columns: 1fr; } }
 
-  if (!payload || !payload.email) {
-    return json({ error: "We couldn't identify your trial — please use the link from your original signup." }, 400, url);
+  .pillar {
+    background: var(--ink-soft); padding: 32px 30px;
+    display: flex; flex-direction: column; gap: 14px;
   }
+  .pillar-icon { width: 38px; height: 38px; flex-shrink: 0; }
+  .pillar h3 { font-family: var(--display); font-weight: 600; font-size: 1.1rem; color: var(--white); letter-spacing: -0.005em; }
+  .pillar p { font-size: 0.88rem; color: var(--grey); line-height: 1.65; }
+  .pillar .tag { font-family: var(--mono); font-size: 0.66rem; color: var(--grey); letter-spacing: 0.03em; opacity: 0.75; padding-top: 4px; }
 
-  const emailKey = payload.email;
-  const recordRaw = await env.TRIALS.get(`trial:${emailKey}`);
-  const trialRecord = recordRaw ? JSON.parse(recordRaw) : null;
-
-  const feedbackEntry = {
-    email: emailKey,
-    name: trialRecord?.name || null,
-    company: trialRecord?.company || null,
-    rating: ratingNum,
-    merits: (merits || "").trim(),
-    demerits: (demerits || "").trim(),
-    improvements: (improvements || "").trim(),
-    submittedAt: new Date().toISOString(),
-  };
-
-  // Stored permanently, separate from the (expiring) trial record, so feedback
-  // survives even after the trial record's TTL passes.
-  const feedbackId = `feedback:${Date.now()}:${emailKey}`;
-  await env.TRIALS.put(feedbackId, JSON.stringify(feedbackEntry));
-
-  // Optional: notify yourself of new feedback the same way as new signups
-  if (env.NOTIFY_WEBHOOK) {
-    try {
-      await fetch(env.NOTIFY_WEBHOOK, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          text: `New Risk2Safe trial feedback: ${feedbackEntry.name || emailKey} (${feedbackEntry.company || "—"}) rated ${ratingNum}/5.\nMerits: ${feedbackEntry.merits || "—"}\nDemerits: ${feedbackEntry.demerits || "—"}\nImprovements: ${feedbackEntry.improvements || "—"}`,
-        }),
-      });
-    } catch {
-      // Don't block submission if the notification fails
-    }
+  /* ================= DISCIPLINE TOOL SECTIONS ================= */
+  .discipline { padding: 68px 0; border-bottom: 1px solid rgba(255,255,255,0.08); }
+  .discipline:last-of-type { border-bottom: none; }
+  .discipline-head { display: flex; align-items: flex-start; gap: 18px; margin-bottom: 14px; }
+  .discipline-icon {
+    width: 46px; height: 46px; flex-shrink: 0; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid rgba(255,255,255,0.12);
   }
+  .discipline-icon svg { width: 24px; height: 24px; }
+  .discipline-titles h2 {
+    font-family: var(--display); font-weight: 600; font-size: 1.5rem; color: var(--white); letter-spacing: -0.01em;
+  }
+  .discipline-titles .count { font-family: var(--mono); font-size: 0.72rem; color: var(--grey); display: block; margin-top: 3px; }
+  .discipline-desc { font-size: 0.92rem; color: var(--grey); max-width: 66ch; margin: 18px 0 30px; line-height: 1.7; }
 
-  return json({ ok: true }, 200, url);
-}
+  .tool-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+  @media (max-width: 760px) { .tool-grid { grid-template-columns: 1fr; } }
 
-// ===================================================================
-// Small helpers
-// ===================================================================
-function setCookieHeader(token) {
-  const maxAge = (TRIAL_DAYS + 30) * 86400; // cookie persists slightly beyond trial so /trial-expired can read context
-  return `${COOKIE_NAME}=${encodeURIComponent(token)}; Path=/; Max-Age=${maxAge}; Secure; HttpOnly; SameSite=Lax`;
-}
+  .tool-card {
+    background: var(--surface); color: var(--ink);
+    border-radius: 4px; padding: 24px;
+    text-decoration: none; display: flex; flex-direction: column; gap: 14px;
+    border-left: 3px solid var(--card-accent, var(--green));
+    transition: transform 0.18s ease, box-shadow 0.18s ease;
+    position: relative;
+  }
+  .tool-card:hover { transform: translateY(-3px); box-shadow: 0 14px 30px rgba(0,0,0,0.4); }
 
-function json(obj, status, url, cookie) {
-  const headers = {
-    "Content-Type": "application/json",
-    "Access-Control-Allow-Origin": url.origin,
-    "Access-Control-Allow-Credentials": "true",
-  };
-  if (cookie) headers["Set-Cookie"] = cookie;
-  return new Response(JSON.stringify(obj), { status, headers });
-}
+  .tool-card-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  .tool-name-row { display: flex; align-items: center; gap: 10px; }
+  .tool-icon { width: 26px; height: 26px; flex-shrink: 0; color: var(--card-accent, var(--green)); }
+  .tool-name { font-family: var(--display); font-weight: 600; font-size: 1.08rem; letter-spacing: -0.005em; line-height: 1.25; }
+  .tool-status {
+    font-family: var(--mono); font-size: 0.62rem; letter-spacing: 0.04em;
+    padding: 3px 7px; border-radius: 2px; white-space: nowrap; text-transform: uppercase;
+    background: rgba(27,94,79,0.1); color: var(--green); flex-shrink: 0; margin-top: 2px;
+  }
+  .tool-desc { font-size: 0.87rem; color: #4a5568; line-height: 1.58; }
+  .tool-use { font-size: 0.78rem; color: #6b7588; line-height: 1.55; font-style: italic; }
+  .tool-cta {
+    font-family: var(--mono); font-size: 0.7rem; color: var(--card-accent, var(--green));
+    padding-top: 12px; border-top: 1px solid var(--surface-line);
+    display: flex; align-items: center; justify-content: space-between; letter-spacing: 0.02em;
+  }
+  .tool-cta .arrow { font-size: 0.9rem; transition: transform 0.18s ease; }
+  .tool-card:hover .tool-cta .arrow { transform: translateX(4px); }
+
+  /* ================= FOOTER ================= */
+  footer.site { padding: 56px 0 48px; border-top: 1px solid rgba(255,255,255,0.08); }
+  .footer-grid { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 32px; }
+  .footer-brand { max-width: 38ch; }
+  .footer-brand .brand { margin-bottom: 12px; }
+  .footer-brand p { font-size: 0.85rem; color: var(--grey); line-height: 1.65; }
+  .footer-links { display: flex; gap: 56px; flex-wrap: wrap; }
+  .footer-col h4 { font-family: var(--mono); font-size: 0.68rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--grey); margin-bottom: 14px; }
+  .footer-col a { display: block; font-size: 0.85rem; color: var(--surface); text-decoration: none; margin-bottom: 9px; opacity: 0.85; }
+  .footer-col a:hover { opacity: 1; color: var(--green-bright); }
+  .footer-bottom { margin-top: 48px; padding-top: 24px; border-top: 1px solid rgba(255,255,255,0.08); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 12px; font-size: 0.76rem; color: var(--grey); font-family: var(--mono); }
+
+  @media (max-width: 600px) {
+    .hero { padding: 56px 0 44px; }
+    .hero-meta .stat { padding-right: 22px; margin-right: 22px; }
+    .pillars { padding: 56px 0; }
+    .discipline { padding: 52px 0; }
+  }
+</style>
+</head>
+<body>
+
+<div class="gauge-border"></div>
+
+<!-- Minimal industrial background line-art -->
+<div class="bg-art" aria-hidden="true">
+  <svg class="bg-pipeline" viewBox="0 0 900 120" xmlns="http://www.w3.org/2000/svg">
+    <path d="M0 60 H900" stroke-width="2"/>
+    <circle cx="120" cy="60" r="14" stroke-width="2"/>
+    <circle cx="320" cy="60" r="14" stroke-width="2"/>
+    <circle cx="560" cy="60" r="14" stroke-width="2"/>
+    <circle cx="780" cy="60" r="14" stroke-width="2"/>
+    <path d="M120 46 V20 H180 V46" stroke-width="2"/>
+    <path d="M560 74 V100 H620 V74" stroke-width="2"/>
+  </svg>
+
+  <svg class="bg-refinery" viewBox="0 0 400 320" xmlns="http://www.w3.org/2000/svg">
+    <rect x="20" y="220" width="360" height="6" stroke-width="2"/>
+    <rect x="50" y="120" width="22" height="100" stroke-width="2"/>
+    <circle cx="61" cy="100" r="20" stroke-width="2"/>
+    <rect x="110" y="80" width="18" height="140" stroke-width="2"/>
+    <circle cx="119" cy="60" r="18" stroke-width="2"/>
+    <rect x="170" y="150" width="40" height="70" stroke-width="2"/>
+    <path d="M170 150 L190 110 L210 150" stroke-width="2"/>
+    <rect x="250" y="60" width="14" height="160" stroke-width="2"/>
+    <path d="M257 60 L257 30" stroke-width="2"/>
+    <rect x="300" y="130" width="50" height="90" stroke-width="2"/>
+    <circle cx="325" cy="120" r="22" stroke-width="2"/>
+    <path d="M40 220 L40 260 M360 220 L360 260" stroke-width="2"/>
+  </svg>
+
+  <svg class="bg-platform" viewBox="0 0 380 320" xmlns="http://www.w3.org/2000/svg">
+    <path d="M40 280 L120 60 L150 60 L130 280" stroke-width="2"/>
+    <path d="M230 280 L250 60 L280 60 L300 280" stroke-width="2"/>
+    <path d="M40 280 H300" stroke-width="2"/>
+    <path d="M120 220 H230" stroke-width="2"/>
+    <path d="M130 160 H260" stroke-width="2"/>
+    <rect x="150" y="20" width="40" height="40" stroke-width="2"/>
+    <path d="M170 20 V0" stroke-width="2"/>
+    <path d="M60 280 L20 320 M280 280 L320 320" stroke-width="2"/>
+  </svg>
+
+  <svg class="bg-ship" viewBox="0 0 400 180" xmlns="http://www.w3.org/2000/svg">
+    <path d="M20 120 L60 160 H340 L380 120 Z" stroke-width="2"/>
+    <rect x="90" y="70" width="50" height="50" stroke-width="2"/>
+    <rect x="160" y="40" width="30" height="80" stroke-width="2"/>
+    <path d="M250 120 V40 L290 40 V120" stroke-width="2"/>
+    <path d="M270 40 V15" stroke-width="2"/>
+    <path d="M0 160 H400" stroke-width="2"/>
+  </svg>
+</div>
+
+<header class="site">
+  <div class="wrap">
+    <div class="brand"><span class="mark"></span>RISK2SAFE</div>
+    <nav class="site-nav">
+      <a href="#identification">Hazard Identification</a>
+      <a href="#assessment">Risk Assessment</a>
+      <a href="#audit">Audit &amp; Investigation</a>
+      <a href="#response">Emergency Response</a>
+    </nav>
+  </div>
+</header>
+
+<section class="hero">
+  <div class="wrap">
+    <div class="eyebrow">Process Safety &amp; Crisis Management Toolkit</div>
+    <h1 class="hero-title">Tools built at the <em>rig face</em>, not the whiteboard.</h1>
+    <p class="hero-sub">
+      A working set of safety engineering applications, built from three decades inside
+      upstream, downstream, offshore platforms, and EPC oil &amp; gas operations — where the
+      cost of a missed hazard is measured in more than paperwork.
+    </p>
+    <div class="hero-meta">
+      <div class="stat"><span class="num">13</span><span class="lbl">applications in active use</span></div>
+      <div class="stat"><span class="num">30+</span><span class="lbl">years field experience</span></div>
+      <div class="stat"><span class="num">5</span><span class="lbl">safety disciplines covered</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============== DISCIPLINE NARRATIVE ============== -->
+<section class="pillars">
+  <div class="wrap">
+    <div class="pillars-head">
+      <div class="eyebrow">Why these five disciplines</div>
+      <h2>Safety isn't one job. It's five overlapping ones, running at once.</h2>
+      <p>
+        On a live asset, a process upset, a heat-stress incident, and a site evacuation can
+        all be unfolding in the same hour — and each calls on a different discipline,
+        a different standard, and a different team. These applications were built to mirror
+        that reality: structured around the five pillars that actually run a safety case,
+        not a single generic "EHS" bucket.
+      </p>
+    </div>
+
+    <div class="pillar-grid">
+
+      <div class="pillar" style="--accent:#E0954A">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="var(--amber-bright)" stroke-width="2">
+          <path d="M24 6 L42 16 V32 L24 42 L6 32 V16 Z"/>
+          <path d="M24 18 V26 M24 32 V33"/>
+        </svg>
+        <h3>Occupational Safety</h3>
+        <p>
+          The everyday discipline of keeping people safe at the point of work — permit-to-work
+          integrity, working-at-height controls, confined space entry, and the behavioural
+          observation programs that catch drift before it becomes an incident.
+        </p>
+        <div class="tag">PTW · BBS · LIFE-SAVING RULES</div>
+      </div>
+
+      <div class="pillar" style="--accent:#2C8A73">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="var(--green-bright)" stroke-width="2">
+          <rect x="10" y="20" width="8" height="20"/>
+          <rect x="20" y="12" width="8" height="28"/>
+          <rect x="30" y="24" width="8" height="16"/>
+          <path d="M14 20 L14 8 M24 12 L24 4 M34 24 L34 16"/>
+        </svg>
+        <h3>Process Safety</h3>
+        <p>
+          The engineering discipline of preventing loss of containment — HAZOP and bowtie
+          barrier analysis, layers of protection, safety-critical element verification, and
+          the management-of-change rigor that keeps a design intent from quietly eroding
+          over twenty years of plant life.
+        </p>
+        <div class="tag">HAZOP · LOPA · SCE INTEGRITY</div>
+      </div>
+
+      <div class="pillar" style="--accent:#4C6B8A">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="#7C9BC0" stroke-width="2">
+          <circle cx="24" cy="24" r="16"/>
+          <path d="M24 14 V24 L31 29"/>
+        </svg>
+        <h3>Industrial Hygiene</h3>
+        <p>
+          The science of exposure — noise, vapour, particulate, heat, and radiation — measured,
+          modelled, and controlled before they become an occupational illness statistic rather
+          than a recordable incident.
+        </p>
+        <div class="tag">EXPOSURE MONITORING · IH SURVEYS</div>
+      </div>
+
+      <div class="pillar" style="--accent:#B0492F">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="#D06850" stroke-width="2">
+          <path d="M24 6 V14 M24 34 V42 M6 24 H14 M34 24 H42"/>
+          <circle cx="24" cy="24" r="9"/>
+        </svg>
+        <h3>Business Continuity</h3>
+        <p>
+          The discipline of keeping the organisation running when an operation can't — business
+          impact analysis, recovery strategies, and the continuity plans that get tested long
+          before the day they're actually needed.
+        </p>
+        <div class="tag">BIA · RECOVERY STRATEGY</div>
+      </div>
+
+      <div class="pillar" style="grid-column: 1 / -1; --accent:#C97A2C">
+        <svg class="pillar-icon" viewBox="0 0 48 48" fill="none" stroke="var(--amber-bright)" stroke-width="2">
+          <path d="M24 4 L44 40 H4 Z"/>
+          <path d="M24 18 V28 M24 32 V33"/>
+        </svg>
+        <h3>Crisis &amp; Emergency Response</h3>
+        <p>
+          The discipline that's only ever tested under pressure — incident command structure,
+          tiered emergency response, mass notification, and the scenario drills that turn a
+          written plan into muscle memory for the people who'll actually run it.
+        </p>
+        <div class="tag">INCIDENT COMMAND · TIERED RESPONSE · SCENARIO DRILLS</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============== HAZARD IDENTIFICATION ============== -->
+<section class="discipline" id="identification">
+  <div class="wrap">
+    <div class="discipline-head">
+      <div class="discipline-icon" style="border-color: rgba(44,138,115,0.4); background: rgba(44,138,115,0.07);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="var(--green-bright)" stroke-width="2"><circle cx="24" cy="24" r="16"/><path d="M24 14 V24 L31 29"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Hazard Identification</h2>
+        <span class="count">03 applications</span>
+      </div>
+    </div>
+    <p class="discipline-desc">
+      Where every safety case begins: finding the deviation before it finds you. These tools
+      structure the hazard and operability review process, mapping causes to consequences and
+      barriers in a way a spreadsheet never could.
+    </p>
+    <div class="tool-grid">
+
+      <a class="tool-card" style="--card-accent:#2C8A73" href="https://kannanpnp.github.io/https-risk2safe.github.io-HAZoP/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M24 6 L42 16 V32 L24 42 L6 32 V16 Z"/><circle cx="24" cy="24" r="6"/></svg>
+            <span class="tool-name">HAZOP Studio</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">AI-assisted hazard and operability study with cross-consequence synchronisation, integrated bow tie generation, loss-of-containment screening, and live degradation factor editing.</p>
+        <p class="tool-use">Use when leading a node-by-node HAZOP on a new design or revalidating an existing one.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" style="--card-accent:#2C8A73" href="https://kannanpnp.github.io/risk2safe-RA-Studio_HAZID/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="8" width="32" height="32" rx="2"/><path d="M16 24 H32 M24 16 V32"/></svg>
+            <span class="tool-name">RA Studio · HAZID</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">Combined risk assessment and hazard identification workspace with configurable risk matrix scoring for fast, structured screening sessions.</p>
+        <p class="tool-use">Use for early-stage hazard identification workshops before a full HAZOP is warranted.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" style="--card-accent:#2C8A73" href="https://kannanpnp.github.io/bowtie/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M4 24 L18 14 V34 Z"/><path d="M44 24 L30 14 V34 Z"/><rect x="18" y="20" width="12" height="8"/></svg>
+            <span class="tool-name">BowTie Studio</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">Visual barrier analysis with safety-critical element flagging, control assurance task generation, and multi-format export for audit packages.</p>
+        <p class="tool-use">Use to visualise threats, barriers, and consequences for a major accident hazard in one diagram.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============== RISK ASSESSMENT ============== -->
+<section class="discipline" id="assessment">
+  <div class="wrap">
+    <div class="discipline-head">
+      <div class="discipline-icon" style="border-color: rgba(124,155,192,0.4); background: rgba(76,107,138,0.1);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="#7C9BC0" stroke-width="2"><rect x="10" y="20" width="8" height="20"/><rect x="20" y="12" width="8" height="28"/><rect x="30" y="24" width="8" height="16"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Risk Assessment</h2>
+        <span class="count">02 applications</span>
+      </div>
+    </div>
+    <p class="discipline-desc">
+      Turning identified hazards into ranked, defensible decisions — what gets fixed first,
+      what gets a barrier, and what's tolerable as-is, before a single shovel hits ground.
+    </p>
+    <div class="tool-grid">
+
+      <a class="tool-card" style="--card-accent:#4C6B8A" href="https://kannanpnp.github.io/risk2safe-ra-studio/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="10" y="20" width="8" height="20"/><rect x="20" y="12" width="8" height="28"/><rect x="30" y="24" width="8" height="16"/></svg>
+            <span class="tool-name">RA Studio</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">Core risk assessment engine with configurable risk matrix scoring, designed for operational, design-phase, and task-based assessments alike.</p>
+        <p class="tool-use">Use as the default tool for any structured risk assessment requiring traceable scoring.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" style="--card-accent:#4C6B8A" href="https://kannanpnp.github.io/risk2safe-constructability-review/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M10 40 V16 L24 6 L38 16 V40 Z"/><path d="M18 40 V26 H30 V40"/></svg>
+            <span class="tool-name">Constructability Review</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">A structured guideword hierarchy walking the full construction lifecycle, with a detailed questionnaire and exportable findings register.</p>
+        <p class="tool-use">Use during design review to surface buildability and sequencing risks before construction starts.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============== AUDIT & INVESTIGATION ============== -->
+<section class="discipline" id="audit">
+  <div class="wrap">
+    <div class="discipline-head">
+      <div class="discipline-icon" style="border-color: rgba(208,104,80,0.4); background: rgba(176,73,47,0.08);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="#D06850" stroke-width="2"><circle cx="20" cy="20" r="12"/><path d="M29 29 L40 40"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Audit &amp; Investigation</h2>
+        <span class="count">03 applications</span>
+      </div>
+    </div>
+    <p class="discipline-desc">
+      Closing the loop — verifying that the system performs as designed, and when it doesn't,
+      finding the real root cause rather than the convenient one.
+    </p>
+    <div class="tool-grid">
+
+      <a class="tool-card" style="--card-accent:#B0492F" href="https://kannanpnp.github.io/risk2safe-PSM-Audit-Studio-Pro/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="10" y="6" width="28" height="36" rx="2"/><path d="M16 16 H32 M16 24 H32 M16 32 H26"/></svg>
+            <span class="tool-name">PSM Audit Studio Pro</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">A comprehensive process safety management audit framework spanning every core PSM element, for site and corporate-level verification.</p>
+        <p class="tool-use">Use for periodic PSM compliance audits or a pre-acquisition technical risk review.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" style="--card-accent:#B0492F" href="https://kannanpnp.github.io/risk2safe-Incident-Investigation/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="24" cy="20" r="10"/><path d="M24 30 V42 M16 42 H32"/></svg>
+            <span class="tool-name">Incident Investigation</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">A structured root-cause and human factors investigation workflow that builds a defensible chain from event to organisational cause.</p>
+        <p class="tool-use">Use immediately after an incident to run a consistent, evidence-based investigation.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+      <a class="tool-card" style="--card-accent:#B0492F" href="https://kannanpnp.github.io/risk2safe-register/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><rect x="8" y="10" width="32" height="28" rx="2"/><path d="M8 18 H40 M16 26 H32 M16 32 H24"/></svg>
+            <span class="tool-name">Risk Register</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">A living register tracking identified hazards, current risk scores, and the status of every mitigation action against them.</p>
+        <p class="tool-use">Use as the single source of truth linking findings from every other tool into one accountable list.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<!-- ============== EMERGENCY RESPONSE ============== -->
+<section class="discipline" id="response">
+  <div class="wrap">
+    <div class="discipline-head">
+      <div class="discipline-icon" style="border-color: rgba(224,149,74,0.4); background: rgba(201,122,44,0.08);">
+        <svg viewBox="0 0 48 48" fill="none" stroke="var(--amber-bright)" stroke-width="2"><path d="M24 4 L44 40 H4 Z"/><path d="M24 18 V28 M24 32 V33"/></svg>
+      </div>
+      <div class="discipline-titles">
+        <h2>Emergency Response</h2>
+        <span class="count">01 application</span>
+      </div>
+    </div>
+    <p class="discipline-desc">
+      The discipline that only gets tested for real once. Built to turn a written response
+      plan into a rehearsed, scoreable team capability long before it's ever needed in earnest.
+    </p>
+    <div class="tool-grid">
+
+      <a class="tool-card" style="--card-accent:#E0954A" href="https://kannanpnp.github.io/Major-Emergency-Scenario-Developer/" target="_blank" rel="noopener">
+        <div class="tool-card-top">
+          <div class="tool-name-row">
+            <svg class="tool-icon" viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2.2"><circle cx="24" cy="24" r="18"/><path d="M24 24 L34 16 M24 24 V12"/></svg>
+            <span class="tool-name">Major Emergency Scenario Developer</span>
+          </div>
+          <span class="tool-status">Live</span>
+        </div>
+        <p class="tool-desc">A scenario simulator with live scoring, automated incident brief generation, after-action reporting, and command structure mapping.</p>
+        <p class="tool-use">Use to run tabletop or live emergency response drills with a scored, repeatable structure.</p>
+        <div class="tool-cta"><span>Open application</span><span class="arrow">→</span></div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+<footer class="site">
+  <div class="wrap">
+    <div class="footer-grid">
+      <div class="footer-brand">
+        <div class="brand"><span class="mark"></span>RISK2SAFE</div>
+        <p>A working toolkit for occupational safety, process safety, industrial hygiene, business continuity, and crisis &amp; emergency response — built from inside upstream, downstream, offshore, and EPC oil and gas operations.</p>
+      </div>
+      <div class="footer-links">
+        <div class="footer-col">
+          <h4>Disciplines</h4>
+          <a href="#identification">Hazard Identification</a>
+          <a href="#assessment">Risk Assessment</a>
+          <a href="#audit">Audit &amp; Investigation</a>
+          <a href="#response">Emergency Response</a>
+        </div>
+        <div class="footer-col">
+          <h4>Connect</h4>
+          <a href="https://github.com/kannanpnp" target="_blank" rel="noopener">GitHub</a>
+          <a href="https://risk2safe.com" target="_blank" rel="noopener">risk2safe.com</a>
+        </div>
+      </div>
+    </div>
+    <div class="footer-bottom">
+      <span>© 2026 RISK2SAFE / H²S CONSULTANTS PVT LTD</span>
+      <span>app.risk2safe.com</span>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
