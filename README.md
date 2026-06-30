@@ -146,6 +146,34 @@ the dashboard, anytime:
   wrangler kv:key list --namespace-id=<your-namespace-id> --prefix="lead:"
   ```
 
+## Post-trial feedback (star rating + merits/demerits/improvements)
+
+The `/trial-expired` page now shows two panels stacked together: the existing
+"contact us" CTA, and a feedback form underneath it. The contact CTA is NOT gated
+behind submitting feedback — someone can email you about enterprise pricing whether
+or not they fill in the survey, so you never lose a hot lead over an unanswered form.
+
+The feedback form asks for:
+- **A 1–5 star rating** (required — click a star, hover to preview)
+- **Merits** — what worked well (optional)
+- **Demerits** — what didn't (optional)
+- **Improvements** — what to build or fix next (optional)
+
+It identifies the visitor automatically via their existing trial cookie (the same one
+set when they signed up), so there's no second login or email re-entry required.
+
+Every submission is stored permanently in KV under a `feedback:<timestamp>:<email>`
+key, separate from the (expiring) trial record, alongside the rating and all three
+text fields plus their name/company pulled from their original signup. View or export
+the same way as leads:
+
+```bash
+wrangler kv:key list --namespace-id=<your-namespace-id> --prefix="feedback:"
+```
+
+If you've set `NOTIFY_WEBHOOK`, you'll also get a Slack/email ping the moment someone
+submits feedback, with the rating and all three answers included in the message.
+
 ## What I can't do for you
 
 DNS nameserver changes, creating the Cloudflare KV namespace, and running
