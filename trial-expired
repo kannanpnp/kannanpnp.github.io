@@ -226,6 +226,13 @@
         body: JSON.stringify(payload)
       });
 
+      const contentType = res.headers.get('content-type') || '';
+      if (!contentType.includes('application/json')) {
+        throw new Error(
+          'The trial system isn\u2019t connected yet on this domain — please finish the Cloudflare Worker setup in the README before testing this form.'
+        );
+      }
+
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong. Please try again.');
 
