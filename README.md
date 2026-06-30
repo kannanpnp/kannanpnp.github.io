@@ -1,125 +1,155 @@
-# Risk2Safe — 7-Day Trial Gate: Setup Guide
+# Risk2Safe — 7-Day Trial Gate (Signup-Wall Mode)
 
-This package gives you a real, server-enforced 7-day trial for app.risk2safe.com.
-Visitors fill in a form, get 7 days of access, and after that get redirected to a
-"contact us for enterprise pricing" page. The check happens entirely on Cloudflare's
-servers — clearing cookies or using incognito will NOT reset the trial, because the
-authoritative record lives in Cloudflare KV (a server-side database), not the browser.
+This is the simplified flow you confirmed: nobody sees anything on app.risk2safe.com
+until they fill in the trial form. Once submitted, they get 7 days of full access to
+everything (your tool catalog page + every individual tool). After 7 days, every
+request redirects to a "contact us" page with a pre-filled email for enterprise
+enquiries.
 
-## What you're deploying
+The 7-day check happens entirely on Cloudflare's servers (in a KV store), not in the
+visitor's browser — so clearing cookies or using incognito does not reset the clock.
 
-- `signup/index.html`      → the trial signup form (Name, Email, Company, Phone, Purpose, User count)
-- `worker/worker.js`        → the Cloudflare Worker that issues trials and gates /tools/*
-- `worker/trial-expired.html` → the page shown once 7 days are up
-- `worker/wrangler.toml`    → Worker configuration
+## Files in this package
 
-## Step 1 — Move risk2safe.com's DNS to Cloudflare (one-time, ~15 min + propagation)
+| File | What it is | Where it goes |
+|---|---|---|
+| `signup/index.html` | The trial signup form — this becomes `app.risk2safe.com/` | GitHub Pages |
+| `worker/trial-expired.html` | "Trial ended, contact us" page | GitHub Pages |
+| `worker/worker.js` | The gatekeeper logic | Cloudflare (NOT GitHub) |
+| `worker/wrangler.toml` | Worker configuration | Stays on your machine |
+| Your existing tool repos (RA Studio, HAZOP Studio, etc.) | Unchanged | Stay on GitHub Pages exactly as they are |
 
-Cloudflare Workers only run on domains whose DNS Cloudflare manages.
+---
 
-1. Sign up at https://dash.cloudflare.com (free plan is enough)
-2. Click "Add a Site" → enter `risk2safe.com`
-3. Cloudflare scans your existing DNS records and shows you a copy — review it
-4. Cloudflare gives you 2 nameservers (e.g. `aida.ns.cloudflare.com`, `vince.ns.cloudflare.com`)
-5. Log into your current registrar (GoDaddy/Namecheap/wherever risk2safe.com is registered)
-   and replace the existing nameservers with Cloudflare's two
-6. Wait for propagation (Cloudflare will email you once it's active — usually a few hours,
-   can take up to 24-48h)
+## Part A — GitHub steps (do this first, it's the easy part)
 
-Your existing GitHub Pages CNAME records carry over automatically in this migration, so
-your tool subdomains keep working throughout.
+### A1. Replace your homepage with the signup form
 
-## Step 2 — Create the KV namespace (your trial database)
+1. Open your `kannanpnp.github.io` repository on GitHub
+2. Open `index.html` in the file browser (top right pencil icon to edit, or click
+   the file then "Edit this file")
+3. Select all existing content, delete it
+4. Paste in the full contents of `signup/index.html` from this package
+5. Scroll down, write a commit message like "Add trial signup form", click
+   **Commit changes**
 
-1. In the Cloudflare dashboard: Workers & Pages → KV → "Create a namespace"
+### A2. Add the trial-expired page
+
+1. In the same repo, click **Add file → Create new file**
+2. Name it exactly `trial-expired.html` (root of the repo, same level as `index.html`)
+3. Paste in the full contents of `worker/trial-expired.html`
+4. Commit
+
+### A3. Where does your discipline-grouped tool catalog page go?
+
+You'll still want the nicely designed page listing HAZOP Studio, RA Studio, BowTie
+Studio etc. (the one we built earlier with the five pillars write-up) — it just
+shouldn't be the very first thing people see anymore, since the signup form takes
+that spot now.
+
+Add it as a second page in the same repo:
+
+1. **Add file → Create new file** → name it `catalog.html`
+2. Paste in the discipline-grouped landing page content (the version with the
+   animated top border, five pillars, and tool cards)
+3. Commit
+
+This becomes reachable at `app.risk2safe.com/catalog` — which is exactly where the
+signup form's "Go to the toolkit →" link points after someone completes the trial
+form, so the flow connects correctly.
+
+### A4. Your tool repos — no changes needed
+
+`risk2safe-ra-studio`, `https-risk2safe.github.io-HAZoP`, `bowtie`, etc. stay exactly
+as they are, with GitHub Pages already enabled on each, same as before.
+
+That's everything on the GitHub side. The remaining steps are all on Cloudflare and
+are what actually enforces the 7-day cutoff — without them, the signup form would
+just collect emails with no real gate behind it.
+
+---
+
+## Part B — Cloudflare steps (this is what makes the gate real)
+
+### B1. Move risk2safe.com's DNS to Cloudflare
+
+Cloudflare Workers only run on domains it manages DNS for.
+
+1. Sign up free at https://dash.cloudflare.com
+2. "Add a Site" → enter `risk2safe.com` → Cloudflare scans your existing DNS records
+3. It gives you 2 nameservers (e.g. `aida.ns.cloudflare.com`, `vince.ns.cloudflare.com`)
+4. Log into your current registrar (wherever you bought risk2safe.com) and replace
+   the nameservers there with Cloudflare's two
+5. Wait for propagation — Cloudflare emails you once active (often a few hours, up
+   to 24–48h). Your existing GitHub Pages CNAME records carry over automatically, so
+   nothing breaks during the wait.
+
+### B2. Create the KV namespace (this is your trial database)
+
+1. Cloudflare dashboard → Workers & Pages → KV → **Create a namespace**
 2. Name it `TRIALS`
-3. Copy the namespace ID it gives you
-4. Paste that ID into `worker/wrangler.toml` in place of `REPLACE_WITH_YOUR_KV_NAMESPACE_ID`
+3. Copy the namespace ID shown
+4. Open `worker/wrangler.toml` in this package and paste that ID in place of
+   `REPLACE_WITH_YOUR_KV_NAMESPACE_ID`
 
-## Step 3 — Install Wrangler (Cloudflare's CLI) and deploy
+### B3. Deploy the Worker
 
-On your machine (requires Node.js installed):
+On your machine, with Node.js installed:
 
 ```bash
 npm install -g wrangler
-wrangler login          # opens a browser to authorize your Cloudflare account
+wrangler login
 cd worker
 wrangler secret put SIGNING_SECRET
-# When prompted, paste any long random string — e.g. generate one with:
+# paste any long random string when prompted — generate one with:
 #   openssl rand -hex 32
 
 wrangler deploy
 ```
 
-Optional — if you want a Slack/email ping every time someone starts a trial:
+Optional, if you want a notification (Slack/email) every time someone signs up:
 
 ```bash
 wrangler secret put NOTIFY_WEBHOOK
 # paste a Zapier/Make/Slack incoming webhook URL
 ```
 
-## Step 4 — Upload the signup and trial-expired pages
+That's it — once deployed, the Worker automatically intercepts every request to
+`app.risk2safe.com`, on every path, and enforces the rule: no valid trial → signup
+form only; valid trial → everything; expired trial → the contact page.
 
-These are static HTML, so they go wherever the rest of app.risk2safe.com is hosted
-(your `kannanpnp.github.io` repo, or wherever you point app.risk2safe.com):
+---
 
-- `signup/index.html` → becomes the homepage visitors see at `app.risk2safe.com/`
-- `worker/trial-expired.html` → upload as `app.risk2safe.com/trial-expired`
+## How to verify it's working
 
-## Step 5 — Route your existing tools under /tools/
+1. Visit `app.risk2safe.com` in a private/incognito window — you should see only the
+   signup form, nothing else reachable
+2. Fill in the form and submit — you should land on the success view with your trial
+   start/expiry dates shown
+3. Click "Go to the toolkit" — `catalog.html` and every tool repo should now load
+4. To test expiry without waiting 7 real days: open the Cloudflare dashboard → KV →
+   TRIALS → find your `trial:<youremail>` key → edit the `start` value to a timestamp
+   8 days in the past → refresh the catalog page → you should be redirected to
+   `/trial-expired`
 
-Right now your tools live at separate repos like
-`kannanpnp.github.io/risk2safe-ra-studio/`. For the Worker to gate them, requests need
-to come through paths starting with `/tools/` on app.risk2safe.com.
+## Managing trials manually (no code needed)
 
-The cleanest way: keep your tool repos exactly as they are, and add a small
-`_redirects` or proxy rule so:
+Because the trial record lives in Cloudflare KV, you can do all of this directly from
+the dashboard, anytime:
 
-```
-app.risk2safe.com/tools/ra-studio/*      → kannanpnp.github.io/risk2safe-ra-studio/*
-app.risk2safe.com/tools/hazop/*          → kannanpnp.github.io/https-risk2safe.github.io-HAZoP/*
-app.risk2safe.com/tools/bowtie/*         → kannanpnp.github.io/bowtie/*
-... etc for each tool
-```
+- **Extend someone's trial** — edit their `trial:<email>` record's `start` value to a
+  more recent timestamp
+- **Revoke access early** — delete their `trial:<email>` key
+- **See every lead you've ever captured** — browse keys prefixed `lead:` (these never
+  expire, even after the 7-day trial record does), or export via:
+  ```bash
+  wrangler kv:key list --namespace-id=<your-namespace-id> --prefix="lead:"
+  ```
 
-This is a few extra lines in the Worker (a routing table) — I've left this as a clearly
-marked extension point in `worker.js` (`handleToolAccess`, the final `fetch(request)` call)
-rather than hardcoding it, since I don't yet know your final URL structure decisions
-(e.g. whether you're keeping the discipline-grouped landing page as the public homepage
-and only gating the tool launches themselves, or gating from the very first click).
+## What I can't do for you
 
-## How the trial actually works (so you can sanity-check it)
-
-1. Visitor fills the form → Worker stores a record in KV: `{name, email, company, phone,
-   purpose, userCount, start: <timestamp>}`, keyed by their email
-2. Worker sets a signed cookie containing their email + start time
-3. Every request to `/tools/*` is intercepted by the Worker, which:
-   - Reads the cookie, verifies its signature (rejects tampered cookies)
-   - Looks up the AUTHORITATIVE record in KV by email (not just trusting the cookie)
-   - Checks if `now - start > 7 days`
-   - If valid: passes the request through to the real tool
-   - If expired or missing: redirects to `/trial-expired`
-4. Because the source of truth is server-side KV, you can also manually extend, revoke,
-   or whitelist any trial directly from the Cloudflare dashboard (KV → TRIALS → search
-   by `trial:<email>`) without touching code — useful for VIP prospects or extensions
-   you grant personally.
-
-## Viewing your leads
-
-Every signup is also stored permanently under a `lead:<timestamp>:<email>` key (separate
-from the expiring trial record), so you have a durable list of everyone who's ever
-signed up, even after their 7-day KV record expires. You can export these via:
-
-```bash
-wrangler kv:key list --namespace-id=<your-namespace-id> --prefix="lead:"
-```
-
-or browse them in the dashboard under KV → TRIALS.
-
-## What I could not do for you
-
-I don't have access to your domain registrar, Cloudflare account, or GitHub account —
-DNS nameserver changes, KV namespace creation, and `wrangler deploy` all require you to
-authenticate as yourself. Everything above is written so you (or any developer) can run
-it step by step. If you get stuck on a specific step, paste me the exact error and I'll
-help you debug it.
+DNS nameserver changes, creating the Cloudflare KV namespace, and running
+`wrangler deploy` all require your own account login — I don't have access to your
+domain registrar, Cloudflare account, or GitHub account. Everything above is written
+so you can do it yourself step by step. If any step throws an error, paste me the
+exact message and I'll help you debug it.
